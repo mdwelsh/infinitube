@@ -1,8 +1,9 @@
 var screenWidth = 40;
 var screenHeight = 20;
 var worldWidth = 40;
-var worldHeight = 40; // XXX Probably want this to be bigger to support wrapping.
+var worldHeight = 40;
 var tileSize = 32;
+var minPlatformGap = tileSize * 2;
 
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
     Phaser.AUTO, '', 
@@ -17,17 +18,20 @@ function preload() {
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
-
+  game.load.audio('gear', 'assets/sounds/sfx_coin_cluster3.wav');
 }
 
 var player;
 var cursors;
 var platforms;
 var spikes;
+var gears;
 var fans;
 var walls;
 var bumpSound;
 var dieSound;
+var gearSound;
+var fallRate = 0;
 
 var WALL = 'castleCenter.png';
 var PLATFORM_LEFT = 'castleHalfLeft.png';
@@ -65,6 +69,9 @@ function makePlatform(x, y, width, onLeft) {
     right = PLATFORM_CENTER;
   }
 
+  var hasSpikes = (game.rnd.frac() < 0);
+  var hasGear = (game.rnd.frac() < 1.0);
+
   for (var i = 0; i < width; i++) {
     var side = center;
     if (i == 0) {
@@ -79,7 +86,22 @@ function makePlatform(x, y, width, onLeft) {
     c.checkWorldBounds = true;
     c.outOfBoundsKill = true;
 
-    c = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
+    if (hasSpikes) {
+      c = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
+      c.width = tileSize;
+      c.height = tileSize;
+      c.body.immovable = true;
+      c.checkWorldBounds = true;
+      c.outOfBoundsKill = true;
+    }
+  }
+
+  if (!hasSpikes && hasGear) {
+    var leftpos = x * tileSize;
+    var rightpos = (x + width) * tileSize;
+    var middle = leftpos + ((rightpos - leftpos)/2);
+    c = gears.getFirstDead(true, middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
+    c.anchor.setTo(.5,.5);
     c.width = tileSize;
     c.height = tileSize;
     c.body.immovable = true;
@@ -97,28 +119,48 @@ function makeFan(x, y, onLeft) {
   }
 }
 
+function makeLayer(y) {
+  // Make random platforms.
+  if (game.rnd.frac() < 0.1) {
+    var width = game.rnd.integerInRange(3, 8);
+    if (game.rnd.frac() < 0.5) {
+      makePlatform(10, y, width, true);
+    } else {
+      makePlatform(worldWidth - (10 + width), y, width, false);
+    }
+  }
+
+  // Make random fans.
+  if (game.rnd.frac() < 0.1) {
+    if (game.rnd.frac() < 0.5) {
+      makeFan(11, y, true);
+    } else {
+      makeFan(worldWidth - 11, y, false);
+    }
+  }
+}
+
 function buildWorld() {
   for (y = 0; y < worldHeight; y++) {
     makeWalls(y);
+    makeLayer(y);
+  }
+}
 
-    // Make random platforms.
-    if (game.rnd.frac() < 0.1) {
-      var width = game.rnd.integerInRange(3, 8);
-      if (game.rnd.frac() < 0.5) {
-        makePlatform(10, y, width, true);
-      } else {
-        makePlatform(worldWidth - (10 + width), y, width, false);
-      }
-    }
+var maxy = 0;
 
-    // Make random fans.
-    if (game.rnd.frac() < 0.1) {
-      if (game.rnd.frac() < 0.5) {
-        makeFan(11, y, true);
-      } else {
-        makeFan(worldWidth - 11, y, false);
-      }
-    }
+function addToWorld() {
+  // Find lowest world item.
+  maxy = 0;
+  platforms.forEach(function(c) {
+    maxy = Math.max(c.y, maxy);
+  });
+  fans.forEach(function(c) {
+    maxy = Math.max(c.y, maxy);
+  });
+  // If the lowest item is above the gap, possibly add one.
+  if (((worldHeight - 1) * tileSize) - maxy >= minPlatformGap) {
+    makeLayer((worldHeight - 1) * tileSize);
   }
 }
 
@@ -136,9 +178,11 @@ function create() {
     bumpSound.allowMultiple = false;
     dieSound = game.add.audio('die');
     dieSound.allowMultiple = false;
+    gearSound = game.add.audio('gear');
+    gearSound.allowMultiple = false;
 
     // The player and its settings
-    player = game.add.sprite((worldWidth / 2) * tileSize, 30, 'player');
+    player = game.add.sprite((worldWidth / 2) * tileSize, 150, 'player');
     player.animations.add('walk', [0, 1, 2, 3, 4, 5], 10, true);
     player.anchor.setTo(.5,.5);
 
@@ -149,6 +193,8 @@ function create() {
     platforms.enableBody = true;
     spikes = game.add.group();
     spikes.enableBody = true;
+    gears = game.add.group();
+    gears.enableBody = true;
     fans = game.add.group();
     fans.enableBody = true;
 
@@ -158,8 +204,8 @@ function create() {
     game.physics.arcade.enable(player);
 
     //  Player physics properties. Give the little guy a slight bounce.
-    player.body.bounce.y = 0.5;
-    player.body.gravity.y = 200;
+    //player.body.bounce.y = 0.25;
+    //player.body.gravity.y = 200;
     //player.body.collideWorldBounds = true;
 
     //  Our controls.
@@ -169,50 +215,43 @@ function create() {
 
 }
 
+var numGearsCollected = 0;
+
+function collectGear(player, gear) {
+
+  // XXX MDW - Might need to move the gears into a group (or something) that is fixed to the camera.
+
+  gearSound.play('', 0, 1, false, false);
+  var xpos = (worldWidth - 2) * tileSize;
+  var ypos = (2 + numGearsCollected) * tileSize;
+  //game.add.tween(gear.body).to({x: xpos, y: ypos}, 250, Phaser.Easing.Linear.None, true);
+  game.add.tween(gear.body).to({
+    fixedToCamera: true,
+    x: xpos,
+    y: ypos,
+  }, 250, Phaser.Easing.Linear.None, true);
+  numGearsCollected++;
+}
+
 function update() {
 
-    // First, destroy anything that has gone off-screen.
-    //
-    // XXX MDW - Hmm, another idea.
-    // This tutorial creates a 'Pole' object with its own update() function.
-    // That function destroys the Pole (and creates new ones) when it goes
-    // off the edge of the world.
-    //
     // http://www.emanueleferonato.com/2015/03/16/html5-prototype-of-an-endless-runner-game-like-spring-ninja/
-    //
-    // However, like a couple of the other games, it works by moving the poles to the left.
-    //
-    // Still, all sprites can have an update() method of their own and we can use that
-    // to have each object check for itself whether it needs to be destroyed when it goes
-    // off-camera.
-    //
-    // What we can do here in the global update function is create new objects below the
-    // current camera view. So, we always create below the camera, and destroy above it.
-    //
-    // I need to understand wrapping, though. Can the camera actually show portions of
-    // the world across the wrap boundary? Reading the docs, I think not!
-    //
-    // So ... this suggests that the right approach is, after all, to set the velocity
-    // on the platforms, spikes, etc. so they are moving up, and let them get destroyed
-    // as they fall off the top of the world. This is not hard if each sprite has an update()
-    // method which checks the "virtual y-velocity" of the player and sets the sprite's
-    // own velocity to the inverse of that. I think this is probably the best approach.
-    //
-    // Alternately, we could just rely on setting negative gravity for all game objects
-    // other than the player.
-    //
-    //
-    //
-    //
     
-    walls.forEach(function(c) {
-      if (c.world.y < game.camera.y - (tileSize*2)) {
-        console.log('Wall at ' + c.world.y + ' is off screen for ' + game.camera.y);
-        //c.tint = Math.random() * 0xffffff;
-        c.kill();
-      }
+    // Slide platforms and fans up.
+    platforms.forEach(function(c) {
+      c.body.velocity.y = -1 * fallRate;
+    });
+    spikes.forEach(function(c) {
+      c.body.velocity.y = -1 * fallRate;
+    });
+    gears.forEach(function(c) {
+      c.body.velocity.y = -1 * fallRate;
+    });
+    fans.forEach(function(c) {
+      c.body.velocity.y = -1 * fallRate;
     });
 
+    // Check for collisions.
     var hitWalls = game.physics.arcade.collide(player, walls);
     var hitPlatform = game.physics.arcade.collide(player, platforms, function() {
       bumpSound.play('', 0, 1, false, false);
@@ -221,45 +260,37 @@ function update() {
       player.tint = Math.random() * 0xffffff;
       dieSound.play('', 0, 1, false, false);
     });
+    var hitGears = game.physics.arcade.overlap(player, gears, collectGear);
 
-    // XXX MDW - This approach doesn't really do what I want.
-    // I think I want to follow this pattern instead:
-    // https://www.joshmorony.com/how-to-create-an-infinite-climbing-game-in-phaser/
-    // which pre-creates a bunch of tiles and then repositions them as needed.
-
+    // Handle controls.
     if (cursors.left.isDown) {
-      //  Move to the left
       player.body.velocity.x = -150;
-
-      // Flip to point left
       player.scale.x = -1;
       player.animations.play('walk');
     } else if (cursors.right.isDown) {
-      //  Move to the right
       player.body.velocity.x = 150;
-
-      // Flip to point right
       player.scale.x = 1;
       player.animations.play('walk');
     } else if (cursors.down.isDown) {
-      // Move down
-      player.body.velocity.y = 150;
+      fallRate += 100;
     } else if (cursors.up.isDown) {
-      // Move down
-      player.body.velocity.y = -150;
+      fallRate *= 0.75;
+      if (fallRate <= 10) {
+        fallRate = 10;
+      }
     } else {
       // Stand still
       player.animations.stop();
       player.frame = 4;
     }
 
-    // XXX MDW - Probably need to use the padding here...
-    // game.world.wrap(player, -(game.height/2), false, false, true);
-    game.world.wrap(player, 0, false, false, true);
+    // Build new world layers.
+    addToWorld();
 }
 
 function render() {
   game.debug.cameraInfo(game.camera, 32, 32);
   game.debug.spriteCoords(player, 32, 500);
+  game.debug.text('maxy = ' + maxy, 32, 150);
 }
 
