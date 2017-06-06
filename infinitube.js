@@ -16,6 +16,7 @@ function preload() {
   game.load.atlasXML('platformer', 'assets/platformer-tiles.png', 'assets/platformer-tiles.xml');
   game.load.atlasXML('platformerIndustrial', 'assets/platformIndustrial_sheet.png',
       'assets/platformIndustrial_sheet.xml');
+  game.load.spritesheet('platformerRequest', 'assets/platformer-request.png', 70, 70, -1, 0, 0);
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
@@ -42,7 +43,8 @@ var PLATFORM_RIGHT = 'castleHalfRight.png';
 function makeWalls(y) {
   var wall;
   for (x = 0; x < 10; x++) {
-    wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformer', WALL);
+    //wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformer', WALL);
+    wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformerRequest', 29);
     wall.width = tileSize;
     wall.height = tileSize;
     wall.body.immovable = true;
@@ -50,7 +52,8 @@ function makeWalls(y) {
     wall.outOfBoundsKill = true;
   }
   for (x = worldWidth - 10; x < worldWidth; x++) {
-    wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformer', WALL);
+    //wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformer', WALL);
+    wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformerRequest', 29);
     wall.width = tileSize;
     wall.height = tileSize;
     wall.body.immovable = true;
