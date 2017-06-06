@@ -60,7 +60,6 @@ function makeWalls(y) {
 }
 
 function makePlatform(x, y, width, onLeft) {
-  console.log('****** makePlatform ' + x + ',' + y + ',' + width + ',' + onLeft);
 
   var left = PLATFORM_LEFT;
   var center = PLATFORM_CENTER;
@@ -71,8 +70,8 @@ function makePlatform(x, y, width, onLeft) {
     right = PLATFORM_CENTER;
   }
 
-  var hasSpikes = (game.rnd.frac() < 0);
-  var hasGear = (game.rnd.frac() < 1.0);
+  var hasSpikes = (game.rnd.frac() < 0.5);
+  var hasGear = (game.rnd.frac() < 0.25);
 
   for (var i = 0; i < width; i++) {
     var side = center;
@@ -82,9 +81,6 @@ function makePlatform(x, y, width, onLeft) {
       side = right;
     }
     var c = platforms.getFirstDead(true, (x + i) * tileSize, y * tileSize, 'platformer', side);
-    c.alive = true;
-    c.exists = true;
-    c.visible = true;
     c.width = tileSize;
     c.height = tileSize;
     c.body.immovable = true;
@@ -93,9 +89,6 @@ function makePlatform(x, y, width, onLeft) {
 
     if (hasSpikes) {
       c = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
-      c.alive = true;
-      c.exists = true;
-      c.visible = true;
       c.width = tileSize;
       c.height = tileSize;
       c.body.immovable = true;
@@ -109,9 +102,6 @@ function makePlatform(x, y, width, onLeft) {
     var rightpos = (x + width) * tileSize;
     var middle = leftpos + ((rightpos - leftpos)/2);
     c = gears.getFirstDead(true, middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
-    c.alive = true;
-    c.exists = true;
-    c.visible = true;
     c.anchor.setTo(.5,.5);
     c.width = tileSize;
     c.height = tileSize;
@@ -134,7 +124,6 @@ function makeFan(x, y, onLeft) {
 }
 
 function makeLayer(y) {
-  console.log('Making layer at ' + y);
   // Make random platforms.
   if (game.rnd.frac() < 0.1) {
     var width = game.rnd.integerInRange(3, 8);
@@ -177,7 +166,6 @@ function addToWorld() {
   });
 
   var diff = ((screenHeight + 2) * tileSize) - maxy;
-  console.log('maxy: ' + maxy + ' diff: ' + diff);
   // If the lowest item is above the gap, possibly add one.
   if (diff >= minPlatformGap) {
     makeLayer(screenHeight + 2);
@@ -224,7 +212,7 @@ function create() {
     game.physics.arcade.enable(player);
 
     //  Player physics properties. Give the little guy a slight bounce.
-    //player.body.bounce.y = 0.25;
+    player.body.bounce.y = 0;
     //player.body.gravity.y = 200;
     //player.body.collideWorldBounds = true;
 
@@ -273,7 +261,7 @@ function update() {
 
     // Check for collisions.
     var hitWalls = game.physics.arcade.collide(player, walls);
-    var hitPlatform = game.physics.arcade.collide(player, platforms, function() {
+    var hitPlatform = game.physics.arcade.overlap(player, platforms, function() {
       bumpSound.play('', 0, 1, false, false);
     });
     var hitSpikes = game.physics.arcade.overlap(player, spikes, function() {
