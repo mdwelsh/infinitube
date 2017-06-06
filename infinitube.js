@@ -4,6 +4,7 @@ var worldWidth = 40;
 var worldHeight = 40;
 var tileSize = 32;
 var minPlatformGap = tileSize * 2;
+var debugString = 'MDW';
 
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
     Phaser.AUTO, '', 
@@ -59,6 +60,7 @@ function makeWalls(y) {
 }
 
 function makePlatform(x, y, width, onLeft) {
+  console.log('****** makePlatform ' + x + ',' + y + ',' + width + ',' + onLeft);
 
   var left = PLATFORM_LEFT;
   var center = PLATFORM_CENTER;
@@ -80,6 +82,9 @@ function makePlatform(x, y, width, onLeft) {
       side = right;
     }
     var c = platforms.getFirstDead(true, (x + i) * tileSize, y * tileSize, 'platformer', side);
+    c.alive = true;
+    c.exists = true;
+    c.visible = true;
     c.width = tileSize;
     c.height = tileSize;
     c.body.immovable = true;
@@ -88,6 +93,9 @@ function makePlatform(x, y, width, onLeft) {
 
     if (hasSpikes) {
       c = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
+      c.alive = true;
+      c.exists = true;
+      c.visible = true;
       c.width = tileSize;
       c.height = tileSize;
       c.body.immovable = true;
@@ -101,6 +109,9 @@ function makePlatform(x, y, width, onLeft) {
     var rightpos = (x + width) * tileSize;
     var middle = leftpos + ((rightpos - leftpos)/2);
     c = gears.getFirstDead(true, middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
+    c.alive = true;
+    c.exists = true;
+    c.visible = true;
     c.anchor.setTo(.5,.5);
     c.width = tileSize;
     c.height = tileSize;
@@ -117,9 +128,13 @@ function makeFan(x, y, onLeft) {
   } else {
     c.angle = 270;
   }
+  c.body.immovable = true;
+  c.checkWorldBounds = true;
+  c.outOfBoundsKill = true;
 }
 
 function makeLayer(y) {
+  console.log('Making layer at ' + y);
   // Make random platforms.
   if (game.rnd.frac() < 0.1) {
     var width = game.rnd.integerInRange(3, 8);
@@ -147,20 +162,25 @@ function buildWorld() {
   }
 }
 
-var maxy = 0;
-
 function addToWorld() {
+  var maxy = 0;
   // Find lowest world item.
-  maxy = 0;
-  platforms.forEach(function(c) {
-    maxy = Math.max(c.y, maxy);
+  platforms.forEachAlive(function(c) {
+    if (c.y < game.world.height) {
+      maxy = Math.max(c.y, maxy);
+    }
   });
-  fans.forEach(function(c) {
-    maxy = Math.max(c.y, maxy);
+  fans.forEachAlive(function(c) {
+    if (c.y < game.world.height) {
+      maxy = Math.max(c.y, maxy);
+    }
   });
+
+  var diff = ((screenHeight + 2) * tileSize) - maxy;
+  console.log('maxy: ' + maxy + ' diff: ' + diff);
   // If the lowest item is above the gap, possibly add one.
-  if (((worldHeight - 1) * tileSize) - maxy >= minPlatformGap) {
-    makeLayer((worldHeight - 1) * tileSize);
+  if (diff >= minPlatformGap) {
+    makeLayer(screenHeight + 2);
   }
 }
 
@@ -238,16 +258,16 @@ function update() {
     // http://www.emanueleferonato.com/2015/03/16/html5-prototype-of-an-endless-runner-game-like-spring-ninja/
     
     // Slide platforms and fans up.
-    platforms.forEach(function(c) {
+    platforms.forEachAlive(function(c) {
       c.body.velocity.y = -1 * fallRate;
     });
-    spikes.forEach(function(c) {
+    spikes.forEachAlive(function(c) {
       c.body.velocity.y = -1 * fallRate;
     });
-    gears.forEach(function(c) {
+    gears.forEachAlive(function(c) {
       c.body.velocity.y = -1 * fallRate;
     });
-    fans.forEach(function(c) {
+    fans.forEachAlive(function(c) {
       c.body.velocity.y = -1 * fallRate;
     });
 
@@ -274,10 +294,11 @@ function update() {
     } else if (cursors.down.isDown) {
       fallRate += 100;
     } else if (cursors.up.isDown) {
-      fallRate *= 0.75;
-      if (fallRate <= 10) {
-        fallRate = 10;
-      }
+      //fallRate *= 0.75;
+      //if (fallRate <= 10) {
+      //  fallRate = 10;
+      //}
+      fallRate = 0; // Stop immediately for debugging.
     } else {
       // Stand still
       player.animations.stop();
@@ -291,6 +312,6 @@ function update() {
 function render() {
   game.debug.cameraInfo(game.camera, 32, 32);
   game.debug.spriteCoords(player, 32, 500);
-  game.debug.text('maxy = ' + maxy, 32, 150);
+  game.debug.text(debugString, 32, 150);
 }
 
