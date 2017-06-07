@@ -28,6 +28,7 @@ var cursors;
 var platforms;
 var spikes;
 var gears;
+var collectedGears;
 var fans;
 var walls;
 var bumpSound;
@@ -35,7 +36,7 @@ var dieSound;
 var gearSound;
 var fallRate = 0;
 
-var WALL = 'castleCenter.png';
+var WALL = 29;
 var PLATFORM_LEFT = 'castleHalfLeft.png';
 var PLATFORM_CENTER = 'castleHalfMid.png';
 var PLATFORM_RIGHT = 'castleHalfRight.png';
@@ -43,22 +44,22 @@ var PLATFORM_RIGHT = 'castleHalfRight.png';
 function makeWalls(y) {
   var wall;
   for (x = 0; x < 10; x++) {
-    //wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformer', WALL);
     wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformerRequest', 29);
     wall.width = tileSize;
     wall.height = tileSize;
     wall.body.immovable = true;
     wall.checkWorldBounds = true;
     wall.outOfBoundsKill = true;
+    wall.tint = 0x303030;
   }
   for (x = worldWidth - 10; x < worldWidth; x++) {
-    //wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformer', WALL);
     wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformerRequest', 29);
     wall.width = tileSize;
     wall.height = tileSize;
     wall.body.immovable = true;
     wall.checkWorldBounds = true;
     wall.outOfBoundsKill = true;
+    wall.tint = 0x303030;
   }
 }
 
@@ -206,6 +207,9 @@ function create() {
     spikes.enableBody = true;
     gears = game.add.group();
     gears.enableBody = true;
+    collectedGears = game.add.group();
+    collectedGears.enableBody = true;
+
     fans = game.add.group();
     fans.enableBody = true;
 
@@ -234,13 +238,22 @@ function collectGear(player, gear) {
 
   gearSound.play('', 0, 1, false, false);
   var xpos = (worldWidth - 2) * tileSize;
-  var ypos = (2 + numGearsCollected) * tileSize;
-  //game.add.tween(gear.body).to({x: xpos, y: ypos}, 250, Phaser.Easing.Linear.None, true);
-  game.add.tween(gear.body).to({
-    fixedToCamera: true,
-    x: xpos,
-    y: ypos,
-  }, 250, Phaser.Easing.Linear.None, true);
+  var ypos = (numGearsCollected * tileSize) + 20;
+  col = collectedGears.getFirstDead(true, xpos, ypos, 'platformerIndustrial', 'platformIndustrial_067.png');
+  col.fixedToCamera = true;
+  col.anchor.setTo(.5,.5);
+  col.width = tileSize;
+  col.height = tileSize;
+  col.body.immovable = true;
+  col.checkWorldBounds = true;
+  col.outOfBoundsKill = true;
+  col.tint = 0xf08080;
+
+  var t1 = game.add.tween(gear.body).to({ x: xpos, y: ypos, }, 250, Phaser.Easing.Linear.None, false);
+  t1.onComplete.add(function(c, t) {
+    console.log('MDW: GOT A GEAR: ' + xpos + ',' + ypos);
+  });
+  t1.start();
   numGearsCollected++;
 }
 
@@ -290,6 +303,7 @@ function update() {
       //  fallRate = 10;
       //}
       fallRate = 0; // Stop immediately for debugging.
+      player.body.velocity.x = 0;
     } else {
       // Stand still
       player.animations.stop();
