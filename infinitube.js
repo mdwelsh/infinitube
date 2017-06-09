@@ -6,6 +6,11 @@ var tileSize = 32;
 var minPlatformGap = tileSize * 2;
 var debugString = 'MDW';
 
+var platformProb = 0.1;
+var fanProb = 0.1;
+var spikeProb = 0.0;
+var gearProb = 1.0;
+
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
     Phaser.AUTO, '', 
     { preload: preload, create: create, update: update, render: render });
@@ -31,6 +36,8 @@ var gears;
 var collectedGears;
 var fans;
 var walls;
+var leftFanWalls;
+var rightFanWalls;
 var bumpSound;
 var dieSound;
 var gearSound;
@@ -74,8 +81,8 @@ function makePlatform(x, y, width, onLeft) {
     right = PLATFORM_CENTER;
   }
 
-  var hasSpikes = (game.rnd.frac() < 0.5);
-  var hasGear = (game.rnd.frac() < 0.25);
+  var hasSpikes = (game.rnd.frac() <= spikeProb);
+  var hasGear = (game.rnd.frac() <= gearProb);
 
   for (var i = 0; i < width; i++) {
     var side = center;
@@ -117,19 +124,25 @@ function makePlatform(x, y, width, onLeft) {
 
 function makeFan(x, y, onLeft) {
   var c = fans.create(x * tileSize, y * tileSize, 'platformerIndustrial', 'platformIndustrial_068.png');
+  var fw;
   if (onLeft) {
     c.angle = 90;
+    fw = leftFanWalls.create(0, y * tileSize);
   } else {
     c.angle = 270;
+    fw = rightFanWalls.create(0, y * tileSize);
   }
   c.body.immovable = true;
   c.checkWorldBounds = true;
   c.outOfBoundsKill = true;
+  // Stretch fan wall across the world.
+  fw.scale.x = game.world.width;
+  //fw.scale.y = tileSize;
 }
 
 function makeLayer(y) {
   // Make random platforms.
-  if (game.rnd.frac() < 0.1) {
+  if (game.rnd.frac() < platformProb) {
     var width = game.rnd.integerInRange(3, 8);
     if (game.rnd.frac() < 0.5) {
       makePlatform(10, y, width, true);
@@ -139,7 +152,7 @@ function makeLayer(y) {
   }
 
   // Make random fans.
-  if (game.rnd.frac() < 0.1) {
+  if (game.rnd.frac() < fanProb) {
     if (game.rnd.frac() < 0.5) {
       makeFan(11, y, true);
     } else {
@@ -209,9 +222,12 @@ function create() {
     gears.enableBody = true;
     collectedGears = game.add.group();
     collectedGears.enableBody = true;
-
     fans = game.add.group();
     fans.enableBody = true;
+    leftFanWalls = game.add.group();
+    leftFanWalls.enableBody = true;
+    rightFanWalls = game.add.group();
+    rightFanWalls.enableBody = true;
 
     buildWorld();
 
@@ -233,14 +249,19 @@ function create() {
 var numGearsCollected = 0;
 
 function collectGear(player, gear) {
-
-  // XXX MDW - Might need to move the gears into a group (or something) that is fixed to the camera.
-
   gearSound.play('', 0, 1, false, false);
-  var xpos = (worldWidth - 2) * tileSize;
-  var ypos = (numGearsCollected * tileSize) + 20;
-  col = collectedGears.getFirstDead(true, xpos, ypos, 'platformerIndustrial', 'platformIndustrial_067.png');
-  col.fixedToCamera = true;
+  numGearsCollected++;
+
+  // First, let's destroy the gear we just collected.
+  var startx = gear.x;
+  var starty = gear.y;
+  gear.kill();
+
+  // Next, create a new one that we're going to collect.
+  var endx = (worldWidth - 2) * tileSize;
+  var endy = (numGearsCollected * tileSize) + 20;
+  col = collectedGears.getFirstDead(true, startx, starty,
+      'platformerIndustrial', 'platformIndustrial_067.png');
   col.anchor.setTo(.5,.5);
   col.width = tileSize;
   col.height = tileSize;
@@ -248,18 +269,13 @@ function collectGear(player, gear) {
   col.checkWorldBounds = true;
   col.outOfBoundsKill = true;
   col.tint = 0xf08080;
-
-  var t1 = game.add.tween(gear.body).to({ x: xpos, y: ypos, }, 250, Phaser.Easing.Linear.None, false);
-  t1.onComplete.add(function(c, t) {
-    console.log('MDW: GOT A GEAR: ' + xpos + ',' + ypos);
-  });
-  t1.start();
-  numGearsCollected++;
+  game.add.tween(col.body).to({ x: endx, y: endy, }, 250, Phaser.Easing.Linear.None, true);
 }
 
 function update() {
 
     // http://www.emanueleferonato.com/2015/03/16/html5-prototype-of-an-endless-runner-game-like-spring-ninja/
+    debugString = player.body.velocity.x + ' : ' + player.body.velocity.y;
     
     // Slide platforms and fans up.
     platforms.forEachAlive(function(c) {
@@ -274,6 +290,12 @@ function update() {
     fans.forEachAlive(function(c) {
       c.body.velocity.y = -1 * fallRate;
     });
+    leftFanWalls.forEachAlive(function(c) {
+      c.body.velocity.y = -1 * fallRate;
+    });
+    rightFanWalls.forEachAlive(function(c) {
+      c.body.velocity.y = -1 * fallRate;
+    });
 
     // Check for collisions.
     var hitWalls = game.physics.arcade.collide(player, walls);
@@ -285,6 +307,16 @@ function update() {
       dieSound.play('', 0, 1, false, false);
     });
     var hitGears = game.physics.arcade.overlap(player, gears, collectGear);
+    game.physics.arcade.overlap(player, leftFanWalls, function() {
+      player.body.velocity.x = 300;
+      player.body.angularVelocity = 200;
+      player.scale.x = 1;
+    });
+    game.physics.arcade.overlap(player, rightFanWalls, function() {
+      player.body.velocity.x = -300;
+      player.body.angularVelocity = -200;
+      player.scale.x = -1;
+    });
 
     // Handle controls.
     if (cursors.left.isDown) {
