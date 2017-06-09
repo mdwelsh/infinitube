@@ -3,7 +3,8 @@ var screenHeight = 20;
 var worldWidth = 40;
 var worldHeight = 40;
 var tileSize = 32;
-var minPlatformGap = tileSize * 2;
+var minPlatformGap = tileSize * 4;
+var minFanGap = tileSize * 4;
 var debugString = 'MDW';
 
 var platformProb = 0.1;
@@ -123,15 +124,25 @@ function makePlatform(x, y, width, onLeft) {
 }
 
 function makeFan(x, y, onLeft) {
-  var c = fans.create(x * tileSize, y * tileSize, 'platformerIndustrial', 'platformIndustrial_068.png');
+  //var c = fans.create(x * tileSize, y * tileSize, 'platformerIndustrial', 'platformIndustrial_068.png');
+  var c = fans.getFirstDead(true, x * tileSize, y * tileSize,
+      'platformerIndustrial', 'platformIndustrial_067.png');
+  if (c.fresh) {
+    var r = new Phaser.Rectangle(1, 1, 68, 68);
+    c.crop(r);
+  }
+
   var fw;
   if (onLeft) {
+    c.body.angularVelocity = 1000;
     c.angle = 90;
     fw = leftFanWalls.create(0, y * tileSize);
   } else {
+    c.body.angularVelocity = -1000;
     c.angle = 270;
     fw = rightFanWalls.create(0, y * tileSize);
   }
+  c.anchor.setTo(.5,.5);
   c.body.immovable = true;
   c.checkWorldBounds = true;
   c.outOfBoundsKill = true;
@@ -140,9 +151,14 @@ function makeFan(x, y, onLeft) {
   //fw.scale.y = tileSize;
 }
 
-function makeLayer(y) {
+function makeLayer(y, platformOk, fanOk) {
+  maxplatform = lowest(platforms);
+  maxfan = lowest(fans);
+  platformOk = (y * tileSize) - maxplatform >= minPlatformGap;
+  fanOk = (y * tileSize) - maxplatform >= minFanGap;
+
   // Make random platforms.
-  if (game.rnd.frac() < platformProb) {
+  if (platformOk && game.rnd.frac() < platformProb) {
     var width = game.rnd.integerInRange(3, 8);
     if (game.rnd.frac() < 0.5) {
       makePlatform(10, y, width, true);
@@ -152,11 +168,11 @@ function makeLayer(y) {
   }
 
   // Make random fans.
-  if (game.rnd.frac() < fanProb) {
+  if (fanOk && game.rnd.frac() < fanProb) {
     if (game.rnd.frac() < 0.5) {
-      makeFan(11, y, true);
+      makeFan(10, y, true);
     } else {
-      makeFan(worldWidth - 11, y, false);
+      makeFan(worldWidth - 10, y, false);
     }
   }
 }
@@ -168,25 +184,18 @@ function buildWorld() {
   }
 }
 
-function addToWorld() {
+function lowest(group) {
   var maxy = 0;
-  // Find lowest world item.
-  platforms.forEachAlive(function(c) {
+  group.forEachAlive(function(c) {
     if (c.y < game.world.height) {
       maxy = Math.max(c.y, maxy);
     }
   });
-  fans.forEachAlive(function(c) {
-    if (c.y < game.world.height) {
-      maxy = Math.max(c.y, maxy);
-    }
-  });
+  return maxy;
+}
 
-  var diff = ((screenHeight + 2) * tileSize) - maxy;
-  // If the lowest item is above the gap, possibly add one.
-  if (diff >= minPlatformGap) {
-    makeLayer(screenHeight + 2);
-  }
+function addToWorld() {
+  makeLayer(screenHeight + 2);
 }
 
 function create() {
@@ -241,6 +250,8 @@ function create() {
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
+
+    game.world.bringToTop(walls);
 
     game.camera.follow(player);
 
