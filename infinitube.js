@@ -3,14 +3,16 @@ var screenHeight = 20;
 var worldWidth = 40;
 var worldHeight = 40;
 var tileSize = 32;
-var minPlatformGap = tileSize * 4;
-var minFanGap = tileSize * 4;
 var debugString = 'MDW';
 
 var platformProb = 0.1;
 var fanProb = 0.1;
 var spikeProb = 0.0;
 var gearProb = 1.0;
+var minObstacleGap = tileSize * 4;
+var maxGears = 10;
+var baseFanVelocity = 300;
+var gearBenefit = 20;
 
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
     Phaser.AUTO, '', 
@@ -151,24 +153,22 @@ function makeFan(x, y, onLeft) {
   //fw.scale.y = tileSize;
 }
 
-function makeLayer(y, platformOk, fanOk) {
-  maxplatform = lowest(platforms);
-  maxfan = lowest(fans);
-  platformOk = (y * tileSize) - maxplatform >= minPlatformGap;
-  fanOk = (y * tileSize) - maxplatform >= minFanGap;
+function makeLayer(y) {
+  var maxobs = Math.max(lowest(platforms), lowest(fans));
+  var ok = ((y * tileSize) - maxobs) >= minObstacleGap;
 
-  // Make random platforms.
-  if (platformOk && game.rnd.frac() < platformProb) {
+  if (!ok) {
+    return;
+  }
+
+  if (game.rnd.frac() < platformProb) {
     var width = game.rnd.integerInRange(3, 8);
     if (game.rnd.frac() < 0.5) {
       makePlatform(10, y, width, true);
     } else {
       makePlatform(worldWidth - (10 + width), y, width, false);
     }
-  }
-
-  // Make random fans.
-  if (fanOk && game.rnd.frac() < fanProb) {
+  } else if (game.rnd.frac() < fanProb) {
     if (game.rnd.frac() < 0.5) {
       makeFan(10, y, true);
     } else {
@@ -251,22 +251,28 @@ function create() {
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
 
+    // Stack things.
     game.world.bringToTop(walls);
+    game.world.bringToTop(collectedGears);
 
     game.camera.follow(player);
-
 }
 
 var numGearsCollected = 0;
 
 function collectGear(player, gear) {
   gearSound.play('', 0, 1, false, false);
-  numGearsCollected++;
 
   // First, let's destroy the gear we just collected.
   var startx = gear.x;
   var starty = gear.y;
   gear.kill();
+
+  if (numGearsCollected >= maxGears) {
+    return;
+  }
+
+  numGearsCollected++;
 
   // Next, create a new one that we're going to collect.
   var endx = (worldWidth - 2) * tileSize;
@@ -284,10 +290,6 @@ function collectGear(player, gear) {
 }
 
 function update() {
-
-    // http://www.emanueleferonato.com/2015/03/16/html5-prototype-of-an-endless-runner-game-like-spring-ninja/
-    debugString = player.body.velocity.x + ' : ' + player.body.velocity.y;
-    
     // Slide platforms and fans up.
     platforms.forEachAlive(function(c) {
       c.body.velocity.y = -1 * fallRate;
@@ -309,22 +311,22 @@ function update() {
     });
 
     // Check for collisions.
-    var hitWalls = game.physics.arcade.collide(player, walls);
-    var hitPlatform = game.physics.arcade.overlap(player, platforms, function() {
+    game.physics.arcade.collide(player, walls);
+    game.physics.arcade.overlap(player, platforms, function() {
       bumpSound.play('', 0, 1, false, false);
     });
-    var hitSpikes = game.physics.arcade.overlap(player, spikes, function() {
+    game.physics.arcade.overlap(player, spikes, function() {
       player.tint = Math.random() * 0xffffff;
       dieSound.play('', 0, 1, false, false);
     });
-    var hitGears = game.physics.arcade.overlap(player, gears, collectGear);
+    game.physics.arcade.overlap(player, gears, collectGear);
     game.physics.arcade.overlap(player, leftFanWalls, function() {
-      player.body.velocity.x = 300;
+      player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
       player.body.angularVelocity = 200;
       player.scale.x = 1;
     });
     game.physics.arcade.overlap(player, rightFanWalls, function() {
-      player.body.velocity.x = -300;
+      player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
       player.body.angularVelocity = -200;
       player.scale.x = -1;
     });
