@@ -1,18 +1,39 @@
+// TODO
+//
+// Checkpoints -- this will require resetting random number generator so we can re-create the world
+//   from that point.
+// Death (go back to last checkpoint)
+// Jetpack fuel
+// Middle platforms (also moving platforms)
+// Up packs
+// Music
+// Pause
+
+
 var screenWidth = 40;
 var screenHeight = 20;
 var worldWidth = 40;
 var worldHeight = 40;
 var tileSize = 32;
-var debugString = 'MDW';
 
 var platformProb = 0.1;
 var fanProb = 0.1;
-var spikeProb = 0.0;
-var gearProb = 1.0;
+var spikeProb = 0.25;
+var gearProb = 0.2;
 var minObstacleGap = tileSize * 4;
 var maxGears = 10;
 var baseFanVelocity = 300;
 var gearBenefit = 20;
+var fanSpin = 1000;
+var spinRate = 800;
+var checkpointGap = 1000;
+
+var debugString = 'MDW';
+var fallRate = 0;
+var numGearsCollected = 0;
+var fallDistance = 0;
+var lastCheckpoint = 0;
+var lastTick = 0;
 
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
     Phaser.AUTO, '', 
@@ -44,7 +65,8 @@ var rightFanWalls;
 var bumpSound;
 var dieSound;
 var gearSound;
-var fallRate = 0;
+var lights;
+var timer;
 
 var WALL = 29;
 var PLATFORM_LEFT = 'castleHalfLeft.png';
@@ -126,7 +148,6 @@ function makePlatform(x, y, width, onLeft) {
 }
 
 function makeFan(x, y, onLeft) {
-  //var c = fans.create(x * tileSize, y * tileSize, 'platformerIndustrial', 'platformIndustrial_068.png');
   var c = fans.getFirstDead(true, x * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_067.png');
   if (c.fresh) {
@@ -136,11 +157,11 @@ function makeFan(x, y, onLeft) {
 
   var fw;
   if (onLeft) {
-    c.body.angularVelocity = 1000;
+    c.body.angularVelocity = fanSpin;
     c.angle = 90;
     fw = leftFanWalls.create(0, y * tileSize);
   } else {
-    c.body.angularVelocity = -1000;
+    c.body.angularVelocity = -1 * fanSpin;
     c.angle = 270;
     fw = rightFanWalls.create(0, y * tileSize);
   }
@@ -151,6 +172,27 @@ function makeFan(x, y, onLeft) {
   // Stretch fan wall across the world.
   fw.scale.x = game.world.width;
   //fw.scale.y = tileSize;
+}
+
+function makeCheckpoint(y) {
+  console.log('MDW making a checkpoint at ' + y);
+
+  var c = lights.getFirstDead(true, 10.5 * tileSize, y * tileSize,
+      'platformerIndustrial', 'platformIndustrial_056.png');
+  c.anchor.setTo(.5,.5);
+  c.angle = 90;
+  c.body.immovable = true;
+  c.checkWorldBounds = true;
+  c.outOfBoundsKill = true;
+
+  c = lights.getFirstDead(true, (worldWidth - 10.5) * tileSize, y * tileSize,
+      'platformerIndustrial', 'platformIndustrial_056.png');
+  c.anchor.setTo(.5,.5);
+  c.angle = 270;
+  c.body.immovable = true;
+  c.checkWorldBounds = true;
+  c.outOfBoundsKill = true;
+  lastCheckpoint = fallDistance;
 }
 
 function makeLayer(y) {
@@ -174,6 +216,8 @@ function makeLayer(y) {
     } else {
       makeFan(worldWidth - 10, y, false);
     }
+  } else if (fallDistance - lastCheckpoint > checkpointGap) {
+    makeCheckpoint(y);
   }
 }
 
@@ -237,6 +281,8 @@ function create() {
     leftFanWalls.enableBody = true;
     rightFanWalls = game.add.group();
     rightFanWalls.enableBody = true;
+    lights = game.add.group();
+    lights.enableBody = true;
 
     buildWorld();
 
@@ -245,8 +291,6 @@ function create() {
 
     //  Player physics properties. Give the little guy a slight bounce.
     player.body.bounce.y = 0;
-    //player.body.gravity.y = 200;
-    //player.body.collideWorldBounds = true;
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
@@ -256,9 +300,20 @@ function create() {
     game.world.bringToTop(collectedGears);
 
     game.camera.follow(player);
+
+    timer = game.time.create(false);
+    timer.loop(1000, tick);
+    lastTick = new Date();
+    timer.start();
 }
 
-var numGearsCollected = 0;
+function tick() {
+  var now = new Date();
+  var elapsed = (now - lastTick) / 1000.0;
+  fallDistance += fallRate * elapsed;
+  debugString = 'Fall distance ' + fallDistance;
+  lastTick = now;
+}
 
 function collectGear(player, gear) {
   gearSound.play('', 0, 1, false, false);
@@ -309,6 +364,9 @@ function update() {
     rightFanWalls.forEachAlive(function(c) {
       c.body.velocity.y = -1 * fallRate;
     });
+    lights.forEachAlive(function(c) {
+      c.body.velocity.y = -1 * fallRate;
+    });
 
     // Check for collisions.
     game.physics.arcade.collide(player, walls);
@@ -322,12 +380,12 @@ function update() {
     game.physics.arcade.overlap(player, gears, collectGear);
     game.physics.arcade.overlap(player, leftFanWalls, function() {
       player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
-      player.body.angularVelocity = 200;
+      player.body.angularVelocity = spinRate;
       player.scale.x = 1;
     });
     game.physics.arcade.overlap(player, rightFanWalls, function() {
       player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
-      player.body.angularVelocity = -200;
+      player.body.angularVelocity = -1 * spinRate;
       player.scale.x = -1;
     });
 
