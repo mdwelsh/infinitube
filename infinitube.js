@@ -35,6 +35,7 @@ var fallRate = 0;
 var numGearsCollected = 0;
 var fallDistance = 0;
 var lastCheckpoint = 0;
+var lastHitCheckpoint = 0;
 var lastTick = 0;
 
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
@@ -53,6 +54,7 @@ function preload() {
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
   game.load.audio('gear', 'assets/sounds/sfx_coin_cluster3.wav');
+  game.load.audio('checkpoint', 'assets/sounds/sfx_menu_select1.wav');
 }
 
 var player;
@@ -65,11 +67,15 @@ var fans;
 var walls;
 var leftFanWalls;
 var rightFanWalls;
+var lights;
+
 var bumpSound;
 var dieSound;
 var gearSound;
-var lights;
+var checkpointSound;
+
 var timer;
+var glow;
 
 var WALL = 29;
 var PLATFORM_LEFT = 'platformIndustrial_035.png';
@@ -194,31 +200,54 @@ function makeFan(x, y, onLeft) {
   c.outOfBoundsKill = true;
   // Stretch fan wall across the world.
   fw.scale.x = game.world.width;
-  //fw.scale.y = tileSize;
 }
 
 function makeCheckpoint(y) {
-  console.log('MDW making a checkpoint at ' + y);
-
-  var c = lights.getFirstDead(true, 10.5 * tileSize, y * tileSize,
+  // Left light.
+  var ll = lights.create(10.5 * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_041.png');
-  c.anchor.setTo(.5,.5);
-  c.angle = 90;
-  c.body.immovable = true;
-  c.checkWorldBounds = true;
-  c.outOfBoundsKill = true;
+  ll.anchor.setTo(.5,.5);
+  ll.angle = 90;
+  ll.body.immovable = true;
+  ll.checkWorldBounds = true;
+  ll.outOfBoundsKill = true;
 
-  // Lightning stuff
-  //c.filters = [ game.add.filter('Glow') ];
+  // Left light glow.
+  var llg = lights.create(11.1 * tileSize, y * tileSize, glow);
+  llg.anchor.setTo(.5,.5);
+  llg.body.immovable = true;
+  llg.checkWorldBounds = true;
+  llg.outOfBoundsKill = true;
+  game.add.tween(llg).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true,
+      0, -1, true);
 
-  c = lights.getFirstDead(true, (worldWidth - 10.5) * tileSize, y * tileSize,
-      'platformerIndustrial', 'platformIndustrial_041.png');
-  c.anchor.setTo(.5,.5);
-  c.angle = 270;
-  c.body.immovable = true;
-  c.checkWorldBounds = true;
-  c.outOfBoundsKill = true;
-  lastCheckpoint = fallDistance;
+  // Right light.
+  var rl = lights.create((worldWidth - 10.5) * tileSize,
+      y * tileSize, 'platformerIndustrial', 'platformIndustrial_041.png');
+  rl.anchor.setTo(.5,.5);
+  rl.angle = 270;
+  rl.body.immovable = true;
+  rl.checkWorldBounds = true;
+  rl.outOfBoundsKill = true;
+
+  // Right light glow.
+  var rlg = lights.create((worldWidth - 11.2) * tileSize,
+      y * tileSize, glow);
+  rlg.anchor.setTo(.5,.5);
+  rlg.body.immovable = true;
+  rlg.checkWorldBounds = true;
+  rlg.outOfBoundsKill = true;
+  game.add.tween(rlg).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true,
+      0, -1, true);
+
+  // Invisible checkpoint wall.
+  var cw;
+  cw = lights.create(0, y * tileSize);
+  cw.scale.x = game.world.width;
+  cw._ll = ll;
+  cw._llg = llg;
+  cw._rl = rl;
+  cw._rlg = rlg;
 }
 
 function makeLayer(y) {
@@ -244,6 +273,7 @@ function makeLayer(y) {
     }
   } else if (fallDistance - lastCheckpoint > checkpointGap) {
     makeCheckpoint(y);
+    lastCheckpoint = fallDistance;
   }
 }
 
@@ -252,6 +282,16 @@ function buildWorld() {
     makeWalls(y);
     makeLayer(y);
   }
+}
+
+function highest(group) {
+  var miny = game.world.height;
+  group.forEachAlive(function(c) {
+    if (c.y < game.world.height) {
+      min = Math.min(c.y, miny);
+    }
+  });
+  return miny;
 }
 
 function lowest(group) {
@@ -272,10 +312,21 @@ function create() {
     // We're going to be using physics, so enable the Arcade Physics system
     game.physics.startSystem(Phaser.Physics.ARCADE);
 
-    // Make the world bigger than the game view.
     game.world.setBounds(0, 0, worldWidth * tileSize, worldHeight * tileSize);
-
     game.stage.backgroundColor = '202020';
+
+    // Glow effect for lights
+    glow = new Phaser.Graphics(game, 0, 0)
+      .beginFill(0xa0a0a0, 0.25)
+      .drawCircle(0, 0, 40)
+      .endFill()
+      .beginFill(0xffffff, 0.25)
+      .drawCircle(0, 0, 30)
+      .endFill()
+      .beginFill(0x0000ff, 0.25)
+      .drawCircle(0, 0, 20)
+      .endFill()
+      .generateTexture();
 
     // Add sounds
     bumpSound = game.add.audio('bump');
@@ -284,6 +335,8 @@ function create() {
     dieSound.allowMultiple = false;
     gearSound = game.add.audio('gear');
     gearSound.allowMultiple = false;
+    checkpointSound = game.add.audio('checkpoint');
+    checkpointSound.allowMultiple = false;
 
     // The player and its settings
     player = game.add.sprite((worldWidth / 2) * tileSize, 150, 'player');
@@ -386,14 +439,18 @@ function killPlayer() {
   fallRate = 0;
 
   // Change the player's color
-  var colorChange = game.add.tween(player).to( { tint: Math.random() * 0xffffff }, 100, Phaser.Easing.Linear.None, false, 0, 4);
+  var colorChange = game.add.tween(player).to(
+      { tint: Math.random() * 0xffffff }, 100, Phaser.Easing.Linear.None,
+      false, 0, 4);
   
   // Fade in the smoke
   smoke = game.add.sprite(player.x, player.y, 'whitepuff');
   smoke.anchor.setTo(.5,.5);
   smoke.alpha = 0;
-  var smokeIn = game.add.tween(smoke).to( { alpha: 1 }, 200, Phaser.Easing.Linear.None, false);
-  var smokeOut = game.add.tween(smoke).to( { alpha: 0 }, 700, Phaser.Easing.Linear.None, false);
+  var smokeIn = game.add.tween(smoke).to( { alpha: 1 }, 200,
+      Phaser.Easing.Linear.None, false);
+  var smokeOut = game.add.tween(smoke).to( { alpha: 0 }, 700,
+      Phaser.Easing.Linear.None, false);
   smokeIn.onComplete.add(function() {
     player.kill();
   });
@@ -403,74 +460,109 @@ function killPlayer() {
   colorChange.start();
 }
 
-function update() {
-    // Slide platforms and fans up.
-    platforms.forEachAlive(function(c) {
-      c.body.velocity.y = -1 * fallRate;
-    });
-    spikes.forEachAlive(function(c) {
-      c.body.velocity.y = -1 * fallRate;
-    });
-    gears.forEachAlive(function(c) {
-      c.body.velocity.y = -1 * fallRate;
-    });
-    fans.forEachAlive(function(c) {
-      c.body.velocity.y = -1 * fallRate;
-    });
-    leftFanWalls.forEachAlive(function(c) {
-      c.body.velocity.y = -1 * fallRate;
-    });
-    rightFanWalls.forEachAlive(function(c) {
-      c.body.velocity.y = -1 * fallRate;
-    });
-    lights.forEachAlive(function(c) {
-      c.body.velocity.y = -1 * fallRate;
-    });
+function hitCheckpoint() {
+  // Avoid double-counting.
+  if (fallDistance <= lastHitCheckpoint + (checkpointGap / 2)) {
+    return;
+  }
+  lastHitCheckpoint = fallDistance;
+  checkpointSound.play('', 0, 1, false, false);
 
-    // Check for collisions.
-    game.physics.arcade.collide(player, walls);
-    game.physics.arcade.overlap(player, platforms, function() {
-      bumpSound.play('', 0, 1, false, false);
-    });
-    game.physics.arcade.overlap(player, spikes, killPlayer);
-    game.physics.arcade.overlap(player, gears, collectGear);
-    game.physics.arcade.overlap(player, leftFanWalls, function() {
-      player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
-      player.body.angularVelocity = spinRate;
-      player.scale.x = 1;
-    });
-    game.physics.arcade.overlap(player, rightFanWalls, function() {
-      player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
-      player.body.angularVelocity = -1 * spinRate;
-      player.scale.x = -1;
-    });
-
-    // Handle controls.
-    if (cursors.left.isDown) {
-      player.body.velocity.x = -150;
-      player.scale.x = -1;
-      player.animations.play('walk');
-    } else if (cursors.right.isDown) {
-      player.body.velocity.x = 150;
-      player.scale.x = 1;
-      player.animations.play('walk');
-    } else if (cursors.down.isDown) {
-      fallRate += 100;
-    } else if (cursors.up.isDown) {
-      //fallRate *= 0.75;
-      //if (fallRate <= 10) {
-      //  fallRate = 10;
-      //}
-      fallRate = 0; // Stop immediately for debugging.
-      player.body.velocity.x = 0;
-    } else {
-      // Stand still
-      player.animations.stop();
-      player.frame = 4;
+  // Change the color of the checkpoint lights. This is a bit crude; each light
+  // should probably be its own object.
+  lights.forEachAlive(function(c) {
+    if (c && c._ll) {
+      c._ll.loadTexture('platformerIndustrial', 'platformIndustrial_056.png');
     }
+    if (c && c._llg) {
+      c._llg.tint = 0xff0000;
+    }
+    if (c && c._rl) {
+      c._rl.loadTexture('platformerIndustrial', 'platformIndustrial_056.png');
+    }
+    if (c && c._rlg) {
+      c._rlg.tint = 0xff0000;
+    }
+  });
+}
 
-    // Build new world layers.
-    addToWorld();
+function update() {
+
+  if (playerDead) {
+    if (cursors.down.isDown) {
+      // Start over. -- Probably change game state here.
+    }
+    return;
+  }
+
+  // Slide platforms and fans up.
+  platforms.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  spikes.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  gears.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  fans.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  leftFanWalls.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  rightFanWalls.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  lights.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+
+  // Check for collisions.
+  game.physics.arcade.collide(player, walls);
+  game.physics.arcade.overlap(player, platforms, function() {
+    bumpSound.play('', 0, 1, false, false);
+  });
+  game.physics.arcade.overlap(player, spikes, killPlayer);
+  game.physics.arcade.overlap(player, gears, collectGear);
+  game.physics.arcade.overlap(player, leftFanWalls, function() {
+    player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
+    player.body.angularVelocity = spinRate;
+    player.scale.x = 1;
+  });
+  game.physics.arcade.overlap(player, rightFanWalls, function() {
+    player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
+    player.body.angularVelocity = -1 * spinRate;
+    player.scale.x = -1;
+  });
+  game.physics.arcade.overlap(player, lights, hitCheckpoint);
+
+  // Handle controls.
+  if (cursors.left.isDown) {
+    player.body.velocity.x = -150;
+    player.scale.x = -1;
+    player.animations.play('walk');
+  } else if (cursors.right.isDown) {
+    player.body.velocity.x = 150;
+    player.scale.x = 1;
+    player.animations.play('walk');
+  } else if (cursors.down.isDown) {
+    fallRate += 100;
+  } else if (cursors.up.isDown) {
+    //fallRate *= 0.75;
+    //if (fallRate <= 10) {
+    //  fallRate = 10;
+    //}
+    fallRate = 0; // Stop immediately for debugging.
+    player.body.velocity.x = 0;
+  } else {
+    // Stand still
+    player.animations.stop();
+    player.frame = 4;
+  }
+
+  // Build new world layers.
+  addToWorld();
 }
 
 function render() {
@@ -478,43 +570,3 @@ function render() {
   game.debug.spriteCoords(player, 32, 500);
   game.debug.text(debugString, 32, 150);
 }
-
-// Lightning stuff
-// https://gamemechanicexplorer.com/#lightning-3
-
-Phaser.Filter.Glow = function (game) {
-    Phaser.Filter.call(this, game);
-
-    this.fragmentSrc = [
-        "precision lowp float;",
-        "varying vec2 vTextureCoord;",
-        "varying vec4 vColor;",
-        'uniform sampler2D uSampler;',
-
-        'void main() {',
-            'vec4 sum = vec4(0);',
-            'vec2 texcoord = vTextureCoord;',
-            'for(int xx = -10; xx <= 10; xx++) {',
-                'for(int yy = -10; yy <= 10; yy++) {',
-                    'float dist = sqrt(float(xx*xx) + float(yy*yy));',
-                    'float factor = 0.0;',
-                    'if (dist == 0.0) {',
-                        'factor = 2.0;',
-                    '} else {',
-                        'factor = 2.0/abs(float(dist));',
-                    '}',
-                    'sum += texture2D(uSampler, texcoord + vec2(xx, yy) * 0.002) * factor;',
-                '}',
-            '}',
-            'gl_FragColor = sum * 0.025 + texture2D(uSampler, texcoord);',
-        '}'
-    ];
-};
-
-Phaser.Filter.Glow.prototype = Object.create(Phaser.Filter.prototype);
-Phaser.Filter.Glow.prototype.constructor = Phaser.Filter.Glow;
-
-
-
-
-
