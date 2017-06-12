@@ -10,7 +10,6 @@
 // Music
 // Pause
 
-
 var screenWidth = 40;
 var screenHeight = 20;
 var worldWidth = 40;
@@ -43,7 +42,17 @@ var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
     Phaser.AUTO, '', 
     { preload: preload, create: create, update: update, render: render });
 
+WebFontConfig = {
+  active: function() { game.time.events.add(Phaser.Timer.SECOND, createText, this); },
+  google: {
+    families: ['Bubbler One']
+  }
+};
+
+
 function preload() {
+  game.load.script('webfont', '//ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js');
+
   game.load.spritesheet('player', 'assets/player/p1_spritesheet.png', 72, 97, -1, 0, 1);
   game.load.image('spikes','assets/spikesBottomAlt2.png');
   game.load.atlasXML('platformer', 'assets/platformer-tiles.png', 'assets/platformer-tiles.xml');
@@ -312,6 +321,11 @@ function addToWorld() {
   makeLayer(screenHeight + 2);
 }
 
+function createText() {
+  scoreText = game.add.text(16, 16, 'Checkpoints: 0',
+      { font: 'Bubbler One', fontSize: '32px', fill: '#ffffff' });
+}
+
 function create() {
     // We're going to be using physics, so enable the Arcade Physics system
     game.physics.startSystem(Phaser.Physics.ARCADE);
@@ -391,8 +405,6 @@ function create() {
     game.world.bringToTop(collectedGears);
     game.world.bringToTop(platforms);
 
-    scoreText = game.add.text(16, 16, 'Checkpoints: 0', { fontSize: '32px', fill: '#ffffff' });
-    scoreText.font = 'HightowerText';
 
     game.camera.follow(player);
 
@@ -603,7 +615,7 @@ function update() {
 }
 
 function render() {
-  game.debug.cameraInfo(game.camera, 32, 32);
-  game.debug.spriteCoords(player, 32, 500);
+  //game.debug.cameraInfo(game.camera, 32, 32);
+  //game.debug.spriteCoords(player, 32, 500);
   game.debug.text(debugString, 32, 150);
 }
