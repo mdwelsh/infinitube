@@ -36,6 +36,7 @@ var numGearsCollected = 0;
 var fallDistance = 0;
 var lastCheckpoint = 0;
 var lastHitCheckpoint = 0;
+var checkpointsTraversed = 0;
 var lastTick = 0;
 
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
@@ -70,6 +71,7 @@ var walls;
 var leftFanWalls;
 var rightFanWalls;
 var lights;
+var scoreText;
 
 var bumpSound;
 var dieSound;
@@ -389,6 +391,9 @@ function create() {
     game.world.bringToTop(collectedGears);
     game.world.bringToTop(platforms);
 
+    scoreText = game.add.text(16, 16, 'Checkpoints: 0', { fontSize: '32px', fill: '#ffffff' });
+    scoreText.font = 'HightowerText';
+
     game.camera.follow(player);
 
     timer = game.time.create(false);
@@ -475,6 +480,9 @@ function hitCheckpoint() {
   if (fallDistance <= lastHitCheckpoint + (checkpointGap / 2)) {
     return;
   }
+  checkpointsTraversed++;
+  scoreText.text = 'Checkpoints: ' + checkpointsTraversed;
+
   lastHitCheckpoint = fallDistance;
   checkpointSound.play('', 0, 1, false, false);
 
