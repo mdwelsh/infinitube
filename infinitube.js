@@ -19,6 +19,7 @@ var platformProb = 0.1;
 var fanProb = 0.1;
 var spikeProb = 0.5;
 var gearProb = 0.2;
+var fuelProb = 0.5;
 var minObstacleGap = tileSize * 4;
 var maxGears = 10;
 var baseFanVelocity = 300;
@@ -64,6 +65,7 @@ function preload() {
       'assets/platformIndustrial_sheet.xml');
   game.load.spritesheet('platformerRequest', 'assets/platformer-request.png', 70, 70, -1, 0, 0);
   game.load.image('whitepuff','assets/smoke/whitePuff00.png');
+  game.load.image('gascan','assets/gascan.png');
   game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-wind.png', 256, 256, -1, 0, 1);
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
@@ -77,7 +79,7 @@ var jetpack;
 var cursors;
 var platforms;
 var spikes;
-var gears;
+var items;
 var collectedGears;
 var fans;
 var walls;
@@ -184,13 +186,14 @@ function makePlatform(x, y, width, onLeft) {
     var leftpos = x * tileSize;
     var rightpos = (x + width) * tileSize;
     var middle = leftpos + ((rightpos - leftpos)/2);
-    c = gears.getFirstDead(true, middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
+    c = items.getFirstDead(true, middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
     c.anchor.setTo(.5,.5);
     c.width = tileSize;
     c.height = tileSize;
     c.body.immovable = true;
     c.checkWorldBounds = true;
     c.outOfBoundsKill = true;
+    c._itemType = 'gear';
   }
 }
 
@@ -268,8 +271,21 @@ function makeCheckpoint(y) {
   cw._rlg = rlg;
 }
 
+function makeFuel(y) {
+  var c = items.getFirstDead(true, (screenWidth / 2) * tileSize, y * tileSize, 'gascan');
+  c.anchor.setTo(.5,.5);
+  c.tint = 0xf04040;
+  c.width = tileSize * 2;
+  c.height = tileSize * 2;
+  c.body.immovable = true;
+  c.checkWorldBounds = true;
+  c.outOfBoundsKill = true;
+  game.add.tween(c).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true, 0, -1, true);
+}
+
 function makeLayer(y) {
-  var maxobs = Math.max(lowest(platforms), lowest(fans), lowest(lights));
+  // First check if we have had enough free space between obstacles.
+  var maxobs = Math.max(lowest(platforms), lowest(fans), lowest(lights), lowest(items));
   var ok = ((y * tileSize) - maxobs) >= minObstacleGap;
 
   if (!ok) {
@@ -283,15 +299,27 @@ function makeLayer(y) {
     } else {
       makePlatform(worldWidth - (10 + width), y, width, false);
     }
-  } else if (game.rnd.frac() < fanProb) {
+    return;
+  }
+
+  if (game.rnd.frac() < fanProb) {
     if (game.rnd.frac() < 0.5) {
       makeFan(10, y, true);
     } else {
       makeFan(worldWidth - 10, y, false);
     }
-  } else if (fallDistance - lastCheckpoint > checkpointGap) {
+    return;
+  }
+
+  if (fallDistance - lastCheckpoint > checkpointGap) {
     makeCheckpoint(y);
     lastCheckpoint = fallDistance;
+    return;
+  }
+
+  if (game.rnd.frac() < fuelProb) {
+    makeFuel(y);
+    return;
   }
 }
 
@@ -386,8 +414,8 @@ function create() {
     platforms.enableBody = true;
     spikes = game.add.group();
     spikes.enableBody = true;
-    gears = game.add.group();
-    gears.enableBody = true;
+    items = game.add.group();
+    items.enableBody = true;
     collectedGears = game.add.group();
     collectedGears.enableBody = true;
     fans = game.add.group();
@@ -400,15 +428,7 @@ function create() {
     lights.enableBody = true;
 
     buildWorld();
-
-    // Fuel indicator
-    var fi = game.add.bitmapData(fuelbarWidth, fuelbarHeight);
-    var grd = fi.context.createLinearGradient(0, 0, fuelbarWidth, fuelbarHeight);
-    grd.addColorStop(0, "#00FF00");
-    grd.addColorStop(1, "#00FF00");
-    fi.context.fillStyle = grd;
-    fi.context.fillRect(0, 0, fuelbarWidth, fuelbarHeight);
-    ui.create((screenWidth * tileSize) - 100, (screenHeight * tileSize) - fuelbarHeight - 30, fi);
+    drawFuelbar();
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
@@ -434,7 +454,16 @@ function tick() {
   lastTick = now;
 }
 
-function collectGear(player, gear) {
+function collectItem(player, item) {
+  if (!item || !item._itemType) {
+    return;
+  }
+  if (item._itemType == 'gear') {
+    collectGear(item);
+  }
+}
+
+function collectGear(gear) {
   gearSound.play('', 0, 1, false, false);
 
   // First, let's destroy the gear we just collected.
@@ -529,12 +558,46 @@ function hitCheckpoint() {
   });
 }
 
+// Stolen from:
+// https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-on-html-canvas
+CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+  if (w < 2 * r) r = w / 2;
+  if (h < 2 * r) r = h / 2;
+  this.beginPath();
+  this.moveTo(x+r, y);
+  this.arcTo(x+w, y,   x+w, y+h, r);
+  this.arcTo(x+w, y+h, x,   y+h, r);
+  this.arcTo(x,   y+h, x,   y,   r);
+  this.arcTo(x,   y,   x+w, y,   r);
+  this.closePath();
+  return this;
+}
+
+function drawFuelbar() {
+  var fi = game.add.bitmapData(fuelbarWidth, fuelbarHeight);
+  var ctx = fi.context;
+  var grd = ctx.createLinearGradient(0, 0, fuelbarWidth, fuelbarHeight);
+  grd.addColorStop(0, "#00FF00");
+  grd.addColorStop(1, "#FF0000");
+  ctx.fillStyle = grd;
+  var y = fuelbarHeight - (fuelbarHeight * (jetpackFuel / 100));
+  //ctx.roundRect(0, y, fuelbarWidth, fuelbarHeight, 20).fill();
+  ctx.roundRect(0, y, fuelbarWidth, fuelbarHeight - y, 10).fill();
+
+  // Replace group with the new sprite.
+  ui.forEach(function(c) {
+    c.destroy();
+  });
+  ui.getFirstDead(true, (screenWidth * tileSize) - 100, (screenHeight * tileSize) - fuelbarHeight - 30, fi);
+}
+
 function useJetpack(goleft) {
   if (jetpackFuel == 0) {
     return;
   }
   jetpackFuel = Math.max(0, jetpackFuel - jetpackFuelRate);
   debugString = 'Jetpack ' + jetpackFuel;
+  drawFuelbar();
 
   var mult = goleft ? -1 : 1;
   player.body.velocity.x = 150 * mult;
@@ -567,7 +630,7 @@ function update() {
   spikes.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
   });
-  gears.forEachAlive(function(c) {
+  items.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
   });
   fans.forEachAlive(function(c) {
@@ -585,11 +648,8 @@ function update() {
 
   // Check for collisions.
   game.physics.arcade.collide(player, walls);
-  game.physics.arcade.overlap(player, platforms, function() {
-    bumpSound.play('', 0, 1, false, false);
-  });
   game.physics.arcade.overlap(player, spikes, killPlayer);
-  game.physics.arcade.overlap(player, gears, collectGear);
+  game.physics.arcade.overlap(player, items, collectItem);
   game.physics.arcade.overlap(player, leftFanWalls, function() {
     player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
     player.body.angularVelocity = spinRate;
@@ -613,8 +673,10 @@ function update() {
     fallRate += 100;
   } else if (cursors.up.isDown) {
     fallRate = 0; // Stop immediately for debugging.
+    jetpackFuel = 100;
     player.body.velocity.x = 0;
     jetpack.on = false;
+    drawFuelbar();
   } else {
     // Stand still
     player.animations.stop();
