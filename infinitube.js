@@ -4,7 +4,6 @@
 //   from that point.
 // Death (go back to last checkpoint)
 // Jetpack fuel
-// Jetpack Animation: https://phaser.io/examples/v2/particles/firestarter
 // Middle platforms (also moving platforms)
 // Up packs
 // Music
@@ -27,6 +26,7 @@ var gearBenefit = 20;
 var fanSpin = 1000;
 var spinRate = 800;
 var checkpointGap = 1000;
+var tickRate = 100;
 
 var playerDead = false;
 var debugString = 'MDW';
@@ -364,9 +364,9 @@ function create() {
     jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150, 50);
     jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
     jetpack.gravity = 0;
-    jetpack.setAlpha(1, 0, 2000);
-    jetpack.setScale(0.4, 0, 0.4, 0, 2000);
-    jetpack.start(false, 2000, 1);
+    jetpack.setAlpha(1, 0, 1000);
+    jetpack.setScale(0.4, 0, 0.4, 0, 1000);
+    jetpack.start(false, 1000, 10);
     jetpack.on = false;
 
     walls = game.add.group();
@@ -405,11 +405,10 @@ function create() {
     game.world.bringToTop(collectedGears);
     game.world.bringToTop(platforms);
 
-
     game.camera.follow(player);
 
     timer = game.time.create(false);
-    timer.loop(1000, tick);
+    timer.loop(tickRate, tick);
     lastTick = new Date();
     timer.start();
 }
@@ -461,6 +460,7 @@ function killPlayer() {
   dieSound.play('', 0, 1, false, false);
 
   // Stop the player
+  jetpack.on = false;
   player.body.velocity.x = 0;
   player.body.velocity.y = 0;
   fallRate = 0;
@@ -517,8 +517,10 @@ function hitCheckpoint() {
 }
 
 function update() {
-
   if (playerDead) {
+    fallRate = 0; // Stop immediately for debugging.
+    player.body.velocity.x = 0;
+    jetpack.on = false;
     if (cursors.down.isDown) {
       // Start over. -- Probably change game state here.
     }
@@ -558,39 +560,41 @@ function update() {
   game.physics.arcade.overlap(player, leftFanWalls, function() {
     player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
     player.body.angularVelocity = spinRate;
+    player.body.angularDrag = spinRate * 4;
     player.scale.x = 1;
   });
   game.physics.arcade.overlap(player, rightFanWalls, function() {
     player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
     player.body.angularVelocity = -1 * spinRate;
+    player.body.angularDrag = spinRate * 4;
     player.scale.x = -1;
   });
   game.physics.arcade.overlap(player, lights, hitCheckpoint);
 
-
   // Handle controls.
   if (cursors.left.isDown) {
     player.body.velocity.x = -150;
+    player.body.angularVelocity = -1 * (spinRate / 2);
+    player.body.angularDrag = spinRate * 4;
     player.scale.x = -1;
-
-    //player.animations.play('walk');
     
     jetpack.emitX = player.x + 30;
     jetpack.emitY = player.y;
     var px = player.body.velocity.x * -5;
-    jetpack.minParticleSpeed.set(500, 0);
-    jetpack.maxParticleSpeed.set(500, 0);
+    jetpack.minParticleSpeed.set(700, 0);
+    jetpack.maxParticleSpeed.set(700, 0);
     jetpack.on = true;
 
   } else if (cursors.right.isDown) {
     player.body.velocity.x = 150;
+    player.body.angularVelocity = (spinRate / 2);
+    player.body.angularDrag = spinRate * 4;
     player.scale.x = 1;
-    //player.animations.play('walk');
     
     jetpack.emitX = player.x - 30;
     jetpack.emitY = player.y;
-    jetpack.minParticleSpeed.set(-500, 0);
-    jetpack.maxParticleSpeed.set(-500, 0);
+    jetpack.minParticleSpeed.set(-700, 0);
+    jetpack.maxParticleSpeed.set(-700, 0);
     jetpack.on = true;
 
   } else if (cursors.down.isDown) {
