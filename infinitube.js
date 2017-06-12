@@ -19,18 +19,20 @@ var platformProb = 0.1;
 var fanProb = 0.1;
 var spikeProb = 0.5;
 var gearProb = 0.2;
-var fuelProb = 0.5;
+var fuelProb = 0.05;
 var minObstacleGap = tileSize * 4;
 var maxGears = 10;
 var baseFanVelocity = 300;
 var gearBenefit = 20;
 var fanSpin = 1000;
 var spinRate = 800;
-var checkpointGap = 1000;
+var checkpointGap = 10000;
 var tickRate = 100;
 var jetpackFuelRate = 1;
 var fuelbarWidth = 20;
 var fuelbarHeight = 400;
+var fuelbarX = (screenWidth * tileSize) - 100
+var fuelbarY = (screenHeight * tileSize) - fuelbarHeight - 30;
 
 var playerDead = false;
 var debugString = 'MDW';
@@ -186,7 +188,7 @@ function makePlatform(x, y, width, onLeft) {
     var leftpos = x * tileSize;
     var rightpos = (x + width) * tileSize;
     var middle = leftpos + ((rightpos - leftpos)/2);
-    c = items.getFirstDead(true, middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
+    c = items.create(middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
     c.anchor.setTo(.5,.5);
     c.width = tileSize;
     c.height = tileSize;
@@ -272,15 +274,21 @@ function makeCheckpoint(y) {
 }
 
 function makeFuel(y) {
-  var c = items.getFirstDead(true, (screenWidth / 2) * tileSize, y * tileSize, 'gascan');
+  var c = items.create((screenWidth / 2) * tileSize, y * tileSize, 'gascan');
   c.anchor.setTo(.5,.5);
   c.tint = 0xf04040;
   c.width = tileSize * 2;
   c.height = tileSize * 2;
-  c.body.immovable = true;
+  //c.body.immovable = true;
   c.checkWorldBounds = true;
   c.outOfBoundsKill = true;
-  game.add.tween(c).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true, 0, -1, true);
+  c._itemType = 'fuel';
+
+  // Make it bounce back and forth.
+  game.physics.arcade.enable(c);
+  c.body.velocity.setTo(200, 0);
+  c.body.bounce.set(0.8);
+  //game.add.tween(c).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true, 0, -1, true);
 }
 
 function makeLayer(y) {
@@ -460,6 +468,8 @@ function collectItem(player, item) {
   }
   if (item._itemType == 'gear') {
     collectGear(item);
+  } else if (item._itemType == 'fuel') {
+    collectFuel(item);
   }
 }
 
@@ -490,6 +500,30 @@ function collectGear(gear) {
   col.outOfBoundsKill = true;
   col.tint = 0xf08080;
   game.add.tween(col.body).to({ x: endx, y: endy, }, 250, Phaser.Easing.Linear.None, true);
+}
+
+function collectFuel(fuel) {
+  var startx = fuel.x;
+  var starty = fuel.y;
+  gearSound.play('', 0, 1, false, false);
+  fuel.kill();
+  jetpackFuel = 100;
+  drawFuelbar();
+
+  // Zap a fuel to the bar.
+  var endx = fuelbarX;
+  var endy = fuelbarY;
+  col = collectedGears.getFirstDead(true, startx, starty, 'gascan');
+  col.anchor.setTo(.5,.5);
+  col.width = tileSize * 2;
+  col.height = tileSize * 2;
+  col.checkWorldBounds = true;
+  col.outOfBoundsKill = true;
+  col.tint = 0xf08080;
+  var t = game.add.tween(col.body).to({ x: endx, y: endy, }, 250, Phaser.Easing.Linear.None, true);
+  t.onComplete.add(function() {
+    col.kill();
+  });
 }
 
 function killPlayer() {
@@ -588,7 +622,7 @@ function drawFuelbar() {
   ui.forEach(function(c) {
     c.destroy();
   });
-  ui.getFirstDead(true, (screenWidth * tileSize) - 100, (screenHeight * tileSize) - fuelbarHeight - 30, fi);
+  ui.getFirstDead(true, fuelbarX, fuelbarY, fi);
 }
 
 function useJetpack(goleft) {
@@ -613,14 +647,45 @@ function useJetpack(goleft) {
 }
 
 function update() {
-  if (playerDead) {
-    fallRate = 0; // Stop immediately for debugging.
-    player.body.velocity.x = 0;
-    jetpack.on = false;
-    if (cursors.down.isDown) {
-      // Start over. -- Probably change game state here.
+  // Check for collisions.
+  game.physics.arcade.collide(player, walls);
+  game.physics.arcade.collide(items, walls);
+  game.physics.arcade.overlap(player, spikes, killPlayer);
+  game.physics.arcade.overlap(player, items, collectItem);
+  game.physics.arcade.overlap(player, leftFanWalls, function() {
+    player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
+    player.body.angularVelocity = spinRate;
+    player.body.angularDrag = spinRate * 4;
+    player.scale.x = 1;
+  });
+  game.physics.arcade.overlap(player, rightFanWalls, function() {
+    player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
+    player.body.angularVelocity = -1 * spinRate;
+    player.body.angularDrag = spinRate * 4;
+    player.scale.x = -1;
+  });
+  game.physics.arcade.overlap(player, lights, hitCheckpoint);
+
+  // Handle controls.
+  if (!playerDead) {
+    if (cursors.left.isDown) {
+      useJetpack(true);
+    } else if (cursors.right.isDown) {
+      useJetpack(false);
+    } else if (cursors.down.isDown) {
+      fallRate += 100;
+    } else if (cursors.up.isDown) {
+      fallRate = 0; // Stop immediately for debugging.
+      jetpackFuel = 100;
+      player.body.velocity.x = 0;
+      jetpack.on = false;
+      drawFuelbar();
+    } else {
+      // Stand still
+      player.animations.stop();
+      player.frame = 4;
+      jetpack.on = false;
     }
-    return;
   }
 
   // Slide platforms and fans up.
@@ -645,44 +710,6 @@ function update() {
   lights.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
   });
-
-  // Check for collisions.
-  game.physics.arcade.collide(player, walls);
-  game.physics.arcade.overlap(player, spikes, killPlayer);
-  game.physics.arcade.overlap(player, items, collectItem);
-  game.physics.arcade.overlap(player, leftFanWalls, function() {
-    player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
-    player.body.angularVelocity = spinRate;
-    player.body.angularDrag = spinRate * 4;
-    player.scale.x = 1;
-  });
-  game.physics.arcade.overlap(player, rightFanWalls, function() {
-    player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
-    player.body.angularVelocity = -1 * spinRate;
-    player.body.angularDrag = spinRate * 4;
-    player.scale.x = -1;
-  });
-  game.physics.arcade.overlap(player, lights, hitCheckpoint);
-
-  // Handle controls.
-  if (cursors.left.isDown) {
-    useJetpack(true);
-  } else if (cursors.right.isDown) {
-    useJetpack(false);
-  } else if (cursors.down.isDown) {
-    fallRate += 100;
-  } else if (cursors.up.isDown) {
-    fallRate = 0; // Stop immediately for debugging.
-    jetpackFuel = 100;
-    player.body.velocity.x = 0;
-    jetpack.on = false;
-    drawFuelbar();
-  } else {
-    // Stand still
-    player.animations.stop();
-    player.frame = 4;
-    jetpack.on = false;
-  }
 
   // Build new world layers.
   addToWorld();
