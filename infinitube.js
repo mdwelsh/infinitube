@@ -50,6 +50,7 @@ function preload() {
       'assets/platformIndustrial_sheet.xml');
   game.load.spritesheet('platformerRequest', 'assets/platformer-request.png', 70, 70, -1, 0, 0);
   game.load.image('whitepuff','assets/smoke/whitePuff00.png');
+  game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-wind.png', 256, 256, -1, 0, 1);
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
@@ -58,6 +59,7 @@ function preload() {
 }
 
 var player;
+var jetpack;
 var cursors;
 var platforms;
 var spikes;
@@ -343,6 +345,14 @@ function create() {
     player.animations.add('walk', [0, 1, 2, 3, 4, 5], 10, true);
     player.anchor.setTo(.5,.5);
 
+    jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150, 50);
+    jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
+    jetpack.gravity = 0;
+    jetpack.setAlpha(1, 0, 2000);
+    jetpack.setScale(0.4, 0, 0.4, 0, 2000);
+    jetpack.start(false, 2000, 1);
+    jetpack.on = false;
+
     walls = game.add.group();
     walls.enableBody = true;
 
@@ -537,15 +547,32 @@ function update() {
   });
   game.physics.arcade.overlap(player, lights, hitCheckpoint);
 
+
   // Handle controls.
   if (cursors.left.isDown) {
     player.body.velocity.x = -150;
     player.scale.x = -1;
-    player.animations.play('walk');
+
+    //player.animations.play('walk');
+    
+    jetpack.emitX = player.x + 30;
+    jetpack.emitY = player.y;
+    var px = player.body.velocity.x * -5;
+    jetpack.minParticleSpeed.set(500, 0);
+    jetpack.maxParticleSpeed.set(500, 0);
+    jetpack.on = true;
+
   } else if (cursors.right.isDown) {
     player.body.velocity.x = 150;
     player.scale.x = 1;
-    player.animations.play('walk');
+    //player.animations.play('walk');
+    
+    jetpack.emitX = player.x - 30;
+    jetpack.emitY = player.y;
+    jetpack.minParticleSpeed.set(-500, 0);
+    jetpack.maxParticleSpeed.set(-500, 0);
+    jetpack.on = true;
+
   } else if (cursors.down.isDown) {
     fallRate += 100;
   } else if (cursors.up.isDown) {
@@ -555,10 +582,12 @@ function update() {
     //}
     fallRate = 0; // Stop immediately for debugging.
     player.body.velocity.x = 0;
+    jetpack.on = false;
   } else {
     // Stand still
     player.animations.stop();
     player.frame = 4;
+    jetpack.on = false;
   }
 
   // Build new world layers.
