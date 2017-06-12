@@ -27,6 +27,9 @@ var fanSpin = 1000;
 var spinRate = 800;
 var checkpointGap = 1000;
 var tickRate = 100;
+var jetpackFuelRate = 1;
+var fuelbarWidth = 20;
+var fuelbarHeight = 400;
 
 var playerDead = false;
 var debugString = 'MDW';
@@ -37,6 +40,7 @@ var lastCheckpoint = 0;
 var lastHitCheckpoint = 0;
 var checkpointsTraversed = 0;
 var lastTick = 0;
+var jetpackFuel = 100;
 
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
     Phaser.AUTO, '', 
@@ -77,6 +81,7 @@ var gears;
 var collectedGears;
 var fans;
 var walls;
+var ui;
 var leftFanWalls;
 var rightFanWalls;
 var lights;
@@ -360,6 +365,8 @@ function create() {
     player = game.add.sprite((worldWidth / 2) * tileSize, 150, 'player');
     player.animations.add('walk', [0, 1, 2, 3, 4, 5], 10, true);
     player.anchor.setTo(.5,.5);
+    game.physics.arcade.enable(player);
+    player.body.bounce.y = 0;
 
     jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150, 50);
     jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
@@ -368,6 +375,9 @@ function create() {
     jetpack.setScale(0.4, 0, 0.4, 0, 1000);
     jetpack.start(false, 1000, 10);
     jetpack.on = false;
+
+    ui = game.add.group();
+    ui.enableBody = false;
 
     walls = game.add.group();
     walls.enableBody = true;
@@ -391,11 +401,14 @@ function create() {
 
     buildWorld();
 
-    //  We need to enable physics on the player
-    game.physics.arcade.enable(player);
-
-    //  Player physics properties. Give the little guy a slight bounce.
-    player.body.bounce.y = 0;
+    // Fuel indicator
+    var fi = game.add.bitmapData(fuelbarWidth, fuelbarHeight);
+    var grd = fi.context.createLinearGradient(0, 0, fuelbarWidth, fuelbarHeight);
+    grd.addColorStop(0, "#00FF00");
+    grd.addColorStop(1, "#00FF00");
+    fi.context.fillStyle = grd;
+    fi.context.fillRect(0, 0, fuelbarWidth, fuelbarHeight);
+    ui.create((screenWidth * tileSize) - 100, (screenHeight * tileSize) - fuelbarHeight - 30, fi);
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
@@ -404,6 +417,7 @@ function create() {
     game.world.bringToTop(walls);
     game.world.bringToTop(collectedGears);
     game.world.bringToTop(platforms);
+    game.world.bringToTop(ui);
 
     game.camera.follow(player);
 
@@ -417,7 +431,6 @@ function tick() {
   var now = new Date();
   var elapsed = (now - lastTick) / 1000.0;
   fallDistance += fallRate * elapsed;
-  debugString = 'Fall distance ' + fallDistance;
   lastTick = now;
 }
 
@@ -516,6 +529,26 @@ function hitCheckpoint() {
   });
 }
 
+function useJetpack(goleft) {
+  if (jetpackFuel == 0) {
+    return;
+  }
+  jetpackFuel = Math.max(0, jetpackFuel - jetpackFuelRate);
+  debugString = 'Jetpack ' + jetpackFuel;
+
+  var mult = goleft ? -1 : 1;
+  player.body.velocity.x = 150 * mult;
+  player.body.angularVelocity = (spinRate / 2) * mult;
+  player.body.angularDrag = spinRate * 4;
+  player.scale.x = mult;
+    
+  jetpack.emitX = player.x + (goleft ? 30 : -30);
+  jetpack.emitY = player.y;
+  jetpack.minParticleSpeed.set(-700 * mult, 0);
+  jetpack.maxParticleSpeed.set(-700 * mult, 0);
+  jetpack.on = true;
+}
+
 function update() {
   if (playerDead) {
     fallRate = 0; // Stop immediately for debugging.
@@ -573,37 +606,12 @@ function update() {
 
   // Handle controls.
   if (cursors.left.isDown) {
-    player.body.velocity.x = -150;
-    player.body.angularVelocity = -1 * (spinRate / 2);
-    player.body.angularDrag = spinRate * 4;
-    player.scale.x = -1;
-    
-    jetpack.emitX = player.x + 30;
-    jetpack.emitY = player.y;
-    var px = player.body.velocity.x * -5;
-    jetpack.minParticleSpeed.set(700, 0);
-    jetpack.maxParticleSpeed.set(700, 0);
-    jetpack.on = true;
-
+    useJetpack(true);
   } else if (cursors.right.isDown) {
-    player.body.velocity.x = 150;
-    player.body.angularVelocity = (spinRate / 2);
-    player.body.angularDrag = spinRate * 4;
-    player.scale.x = 1;
-    
-    jetpack.emitX = player.x - 30;
-    jetpack.emitY = player.y;
-    jetpack.minParticleSpeed.set(-700, 0);
-    jetpack.maxParticleSpeed.set(-700, 0);
-    jetpack.on = true;
-
+    useJetpack(false);
   } else if (cursors.down.isDown) {
     fallRate += 100;
   } else if (cursors.up.isDown) {
-    //fallRate *= 0.75;
-    //if (fallRate <= 10) {
-    //  fallRate = 10;
-    //}
     fallRate = 0; // Stop immediately for debugging.
     player.body.velocity.x = 0;
     jetpack.on = false;
