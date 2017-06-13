@@ -202,10 +202,10 @@ function makePlatform(x, y, width, onLeft) {
 function makeFan(x, y, onLeft) {
   var c = fans.getFirstDead(true, x * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_067.png');
-  if (c.fresh) {
-    var r = new Phaser.Rectangle(1, 1, 68, 68);
-    c.crop(r);
-  }
+//  if (c.fresh) {
+//    var r = new Phaser.Rectangle(1, 1, 68, 68);
+//    c.crop(r);
+//  }
 
   var fw;
   if (onLeft) {
@@ -223,6 +223,22 @@ function makeFan(x, y, onLeft) {
   c.outOfBoundsKill = true;
   // Stretch fan wall across the world.
   fw.scale.x = game.world.width;
+
+  // Fan emitter
+  var fe = game.add.emitter(0, 0, 50);
+  c.addChild(fe);
+  fe.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
+  fe.gravity = 0;
+  fe.setAlpha(1, 0, 2000);
+  fe.setScale(0.4, 0, 0.4, 0, 2000);
+  fe.start(false, 2000, 10);
+  //fe.emitX = x * tileSize;
+  //fe.emitY = y * tileSize;
+  var mult = onLeft ? 1 : -1;
+  fe.minParticleSpeed.set(-700 * mult, 0);
+  fe.maxParticleSpeed.set(-700 * mult, 0);
+  fe.on = true;
+
 }
 
 function makeCheckpoint(y) {
