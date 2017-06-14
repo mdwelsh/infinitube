@@ -206,38 +206,51 @@ function makeFan(x, y, onLeft) {
 //    var r = new Phaser.Rectangle(1, 1, 68, 68);
 //    c.crop(r);
 //  }
+//
+
+  // XXX XXX XXX MDW STOPPED HERE
+  // To make fan emitter work -- need to set c.update = function() { fe.update(); }
 
   var fw;
   if (onLeft) {
     c.body.angularVelocity = fanSpin;
-    c.angle = 90;
-    fw = leftFanWalls.create(0, y * tileSize);
+    //c.angle = 90;
+    //fw = leftFanWalls.create(0, y * tileSize);
   } else {
     c.body.angularVelocity = -1 * fanSpin;
-    c.angle = 270;
-    fw = rightFanWalls.create(0, y * tileSize);
+    //c.angle = 270;
+    //fw = rightFanWalls.create(0, y * tileSize);
   }
   c.anchor.setTo(.5,.5);
   c.body.immovable = true;
   c.checkWorldBounds = true;
   c.outOfBoundsKill = true;
   // Stretch fan wall across the world.
-  fw.scale.x = game.world.width;
+  //fw.scale.x = game.world.width;
 
   // Fan emitter
   var fe = game.add.emitter(0, 0, 50);
-  c.addChild(fe);
   fe.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
-  fe.gravity = 0;
+  //fe.gravity = 0;
   fe.setAlpha(1, 0, 2000);
   fe.setScale(0.4, 0, 0.4, 0, 2000);
-  fe.start(false, 2000, 10);
+  fe.start(true, 2000, 10);
   //fe.emitX = x * tileSize;
   //fe.emitY = y * tileSize;
   var mult = onLeft ? 1 : -1;
   fe.minParticleSpeed.set(-700 * mult, 0);
   fe.maxParticleSpeed.set(-700 * mult, 0);
   fe.on = true;
+  c.addChild(fe);
+
+  var je = game.add.emitter((worldWidth / 2) * tileSize, 150, 50);
+  je.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
+  je.gravity = 0;
+  je.setAlpha(1, 0, 1000);
+  je.setScale(0.4, 0, 0.4, 0, 1000);
+  je.start(false, 1000, 10);
+  je.on = true;
+  c.addChild(je);
 
 }
 
@@ -415,17 +428,23 @@ function create() {
 
     // The player and its settings
     player = game.add.sprite((worldWidth / 2) * tileSize, 150, 'player');
-    player.animations.add('walk', [0, 1, 2, 3, 4, 5], 10, true);
+    //player.animations.add('walk', [0, 1, 2, 3, 4, 5], 10, true);
     player.anchor.setTo(.5,.5);
-    game.physics.arcade.enable(player);
+    game.physics.arcade.enableBody(player);
     player.body.bounce.y = 0;
 
-    jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150, 50);
+    jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150);
     jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
     jetpack.gravity = 0;
     jetpack.setAlpha(1, 0, 1000);
     jetpack.setScale(0.4, 0, 0.4, 0, 1000);
-    jetpack.start(false, 1000, 10);
+    //jetpack.lifespan = 500;
+    //jetpack.maxParticleSpeed = new Phaser.Point(-100,50);
+    //jetpack.minParticleSpeed = new Phaser.Point(-200,-50);
+    // Force jetpack to update with player.
+    //player.addChild(jetpack);
+    //player.update = function() { jetpack.update(); }
+    jetpack.start(false);
     jetpack.on = false;
 
     ui = game.add.group();
@@ -698,7 +717,6 @@ function update() {
       drawFuelbar();
     } else {
       // Stand still
-      player.animations.stop();
       player.frame = 4;
       jetpack.on = false;
     }
@@ -733,6 +751,9 @@ function update() {
 
 function render() {
   //game.debug.cameraInfo(game.camera, 32, 32);
-  //game.debug.spriteCoords(player, 32, 500);
+  game.debug.spriteCoords(player, 32, 500);
+//  game.debug.spriteInfo(jetpack, 32, 500);
+//  game.debug.spriteCoords(jetpack, 32, 600);
+  debugString = 'JP: ' + jetpack.x + ',' + jetpack.y + ' / ' + jetpack.emitX + ',' + jetpack.emitY;
   game.debug.text(debugString, 32, 150);
 }
