@@ -68,7 +68,7 @@ function preload() {
   game.load.spritesheet('platformerRequest', 'assets/platformer-request.png', 70, 70, -1, 0, 0);
   game.load.image('whitepuff','assets/smoke/whitePuff00.png');
   game.load.image('gascan','assets/gascan.png');
-  game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-wind.png', 256, 256, -1, 0, 1);
+  game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-small.png', 256, 256, -1, 0, 1);
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
@@ -200,58 +200,58 @@ function makePlatform(x, y, width, onLeft) {
 }
 
 function makeFan(x, y, onLeft) {
-  var c = fans.getFirstDead(true, x * tileSize, y * tileSize,
+  // Start with an empty sprite to anchor things.
+  var p = fans.getFirstDead(true, x * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_067.png');
-//  if (c.fresh) {
-//    var r = new Phaser.Rectangle(1, 1, 68, 68);
-//    c.crop(r);
-//  }
-//
+  //var p = game.add.sprite((worldWidth / 2 ) * tileSize, 150, 'platformerIndustrial', 'platformIndustrial_067.png');
+  p.anchor.setTo(.5,.5);
+  p.body.immovable = true;
+  p.checkWorldBounds = true;
+  p.outOfBoundsKill = true;
+  //p.body.angularVelocity = fanSpin;
 
-  // XXX XXX XXX MDW STOPPED HERE
-  // To make fan emitter work -- need to set c.update = function() { fe.update(); }
-
-  var fw;
-  if (onLeft) {
-    c.body.angularVelocity = fanSpin;
-    //c.angle = 90;
-    //fw = leftFanWalls.create(0, y * tileSize);
-  } else {
-    c.body.angularVelocity = -1 * fanSpin;
-    //c.angle = 270;
-    //fw = rightFanWalls.create(0, y * tileSize);
+  var c = game.add.sprite(0, 0, 'platformerIndustrial', 'platformIndustrial_067.png');
+  if (c.fresh) {
+    var r = new Phaser.Rectangle(1, 1, 68, 68);
+    c.crop(r);
   }
+  game.physics.arcade.enable(c);
   c.anchor.setTo(.5,.5);
   c.body.immovable = true;
   c.checkWorldBounds = true;
   c.outOfBoundsKill = true;
+  p.addChild(c);
+
+  var fw;
+  if (onLeft) {
+    c.body.angularVelocity = fanSpin;
+    c.angle = 90;
+    fw = leftFanWalls.create(0, y * tileSize);
+  } else {
+    c.body.angularVelocity = -1 * fanSpin;
+    c.angle = 90;
+    fw = rightFanWalls.create(0, y * tileSize);
+  }
   // Stretch fan wall across the world.
-  //fw.scale.x = game.world.width;
+  fw.scale.x = game.world.width;
 
   // Fan emitter
-  var fe = game.add.emitter(0, 0, 50);
+  var fe = game.add.emitter(onLeft ? 50 : -50, 0, 50);
   fe.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
-  //fe.gravity = 0;
+  fe.forEach(function(particle) { particle.tint = 0x000040; });
+  fe.gravity = 0;
   fe.setAlpha(1, 0, 2000);
   fe.setScale(0.4, 0, 0.4, 0, 2000);
-  fe.start(true, 2000, 10);
-  //fe.emitX = x * tileSize;
-  //fe.emitY = y * tileSize;
-  var mult = onLeft ? 1 : -1;
-  fe.minParticleSpeed.set(-700 * mult, 0);
-  fe.maxParticleSpeed.set(-700 * mult, 0);
+  fe.start(true, 2000, 250);
+  //fe.emitX = 0;
+  //fe.emitY = 0;
+  var mult = onLeft ? -1 : 1;
+  fe.minParticleSpeed.set(-400 * mult, 100);
+  fe.maxParticleSpeed.set(-800 * mult, -100);
   fe.on = true;
-  c.addChild(fe);
+  p.addChild(fe);
 
-  var je = game.add.emitter((worldWidth / 2) * tileSize, 150, 50);
-  je.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
-  je.gravity = 0;
-  je.setAlpha(1, 0, 1000);
-  je.setScale(0.4, 0, 0.4, 0, 1000);
-  je.start(false, 1000, 10);
-  je.on = true;
-  c.addChild(je);
-
+  p.update = function() { c.update(); fe.update(); }
 }
 
 function makeCheckpoint(y) {
