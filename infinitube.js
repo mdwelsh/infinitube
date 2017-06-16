@@ -328,6 +328,8 @@ function makeFloatySpike(y) {
   var right = PLATFORM_RIGHT;
   var x = (worldWidth / 2);
 
+  var fs = game.add.group();
+
   for (var i = 0; i < floatySpikeWidth; i++) {
     var side = center;
     if (i == 0) {
@@ -335,29 +337,28 @@ function makeFloatySpike(y) {
     } else if (i == floatySpikeWidth-1) {
       side = right;
     }
-    var c = platforms.getFirstDead(true, (x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
-    console.log('makeFloatySpike[' + i + '] = ' + c);
+    var c = fs.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
     c.width = tileSize;
     c.height = tileSize/2;
-    //c.body.immovable = true;
     c.checkWorldBounds = true;
     c.outOfBoundsKill = true;
-    // Make it move.
+
     game.physics.arcade.enable(c);
     c.body.velocity.setTo(200, 0);
     c.body.bounce.set(0.8);
 
-    var s = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
+    var s = fs.create((x + i) * tileSize, (y-1) * tileSize, 'spikes');
     s.width = tileSize;
     s.height = tileSize;
-    //s.body.immovable = true;
     s.checkWorldBounds = true;
     s.outOfBoundsKill = true;
-    // Make it move.
+
     game.physics.arcade.enable(s);
     s.body.velocity.setTo(200, 0);
     s.body.bounce.set(0.8);
   }
+
+  platforms.add(fs);
 }
 
 function makeLayer(y) {
@@ -771,7 +772,13 @@ function update() {
 
   // Slide platforms and fans up.
   platforms.forEachAlive(function(c) {
-    c.body.velocity.y = -1 * fallRate;
+    if (c && c.body) {
+      c.body.velocity.y = -1 * fallRate;
+    } else {
+      c.forEachAlive(function(c2) {
+        c2.body.velocity.y = -1 * fallRate;
+      });
+    }
   });
   spikes.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
