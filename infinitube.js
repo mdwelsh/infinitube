@@ -3,11 +3,19 @@
 // Checkpoints -- this will require resetting random number generator so we can re-create the world
 //   from that point.
 // Death (go back to last checkpoint)
-// Jetpack fuel
 // Middle platforms (also moving platforms)
 // Up packs
 // Music
 // Pause
+
+var PlayState = function () {};
+
+PlayState.prototype = {
+  preload: preload,
+  create: create,
+  update: update,
+  render: render,
+};
 
 var screenWidth = 40;
 var screenHeight = 20;
@@ -47,21 +55,7 @@ var checkpointsTraversed = 0;
 var lastTick = 0;
 var jetpackFuel = 100;
 
-var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
-    Phaser.AUTO, '', 
-    { preload: preload, create: create, update: update, render: render });
-
-WebFontConfig = {
-  active: function() { game.time.events.add(Phaser.Timer.SECOND, createText, this); },
-  google: {
-    families: ['Bubbler One']
-  }
-};
-
-
 function preload() {
-  game.load.script('webfont', '//ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js');
-
   game.load.spritesheet('player', 'assets/player/p1_spritesheet.png', 72, 97, -1, 0, 1);
   game.load.image('spikes','assets/spikesBottomAlt2.png');
   game.load.atlasXML('platformer', 'assets/platformer-tiles.png', 'assets/platformer-tiles.xml');
@@ -437,10 +431,6 @@ function addToWorld() {
   makeLayer(screenHeight + 2);
 }
 
-function createText() {
-  scoreText = game.add.text(16, 16, 'Checkpoints: 0',
-      { font: 'Bubbler One', fontSize: '32px', fill: '#ffffff' });
-}
 
 function create() {
     // We're going to be using physics, so enable the Arcade Physics system
@@ -461,6 +451,7 @@ function create() {
       .drawCircle(0, 0, 20)
       .endFill()
       .generateTexture();
+
 
     // Add sounds
     bumpSound = game.add.audio('bump');
@@ -518,6 +509,9 @@ function create() {
 
     buildWorld();
     drawFuelbar();
+
+    scoreText = game.add.text(16, 16, 'Checkpoints: 0',
+        { font: 'Bubbler One', fontSize: '32px', fill: '#ffffff' });
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();

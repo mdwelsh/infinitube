@@ -19,6 +19,7 @@ BootState.prototype = {
     this.makeLine('press any key to begin', 600, '20px');
 
     this.game.input.keyboard.onDownCallback = function() {
+      this.game.input.keyboard.onDownCallback = function() {};
       game.time.events.add(Phaser.Timer.SECOND, function() {
         game.state.start('play');
       }, this);
