@@ -14,7 +14,7 @@ game.state.add('play', PlayState);
 
 WebFont.load({
   google: {
-    families: ['Bubbler One']
+    families: ['Bubbler One', 'Russo One']
   },
   active: function() { 
     game.state.start('boot');
