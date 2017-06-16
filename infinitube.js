@@ -20,6 +20,7 @@ var fanProb = 0.1;
 var spikeProb = 0.5;
 var gearProb = 0.2;
 var fuelProb = 0.05;
+var floatySpikeProb = 0.2;
 var minObstacleGap = tileSize * 4;
 var maxGears = 10;
 var baseFanVelocity = 300;
@@ -33,6 +34,7 @@ var fuelbarWidth = 20;
 var fuelbarHeight = 400;
 var fuelbarX = (screenWidth * tileSize) - 100
 var fuelbarY = (screenHeight * tileSize) - fuelbarHeight - 30;
+var floatySpikeWidth = 3;
 
 var playerDead = false;
 var debugString = 'MDW';
@@ -147,7 +149,6 @@ function makeWalls(y) {
 }
 
 function makePlatform(x, y, width, onLeft) {
-
   var left = PLATFORM_LEFT;
   var center = PLATFORM_CENTER;
   var right = PLATFORM_RIGHT;
@@ -167,7 +168,7 @@ function makePlatform(x, y, width, onLeft) {
     } else if (i == width-1) {
       side = right;
     }
-    var c = platforms.getFirstDead(true, (x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
+    var c = platforms.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
     c.width = tileSize;
     c.height = tileSize/2;
     c.body.immovable = true;
@@ -320,6 +321,45 @@ function makeFuel(y) {
   //game.add.tween(c).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true, 0, -1, true);
 }
 
+function makeFloatySpike(y) {
+  console.log('makeFloatySpike ' + y);
+  var left = PLATFORM_LEFT;
+  var center = PLATFORM_CENTER;
+  var right = PLATFORM_RIGHT;
+  var x = (worldWidth / 2);
+
+  for (var i = 0; i < floatySpikeWidth; i++) {
+    var side = center;
+    if (i == 0) {
+      side = left;
+    } else if (i == floatySpikeWidth-1) {
+      side = right;
+    }
+    var c = platforms.getFirstDead(true, (x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
+    console.log('makeFloatySpike[' + i + '] = ' + c);
+    c.width = tileSize;
+    c.height = tileSize/2;
+    //c.body.immovable = true;
+    c.checkWorldBounds = true;
+    c.outOfBoundsKill = true;
+    // Make it move.
+    game.physics.arcade.enable(c);
+    c.body.velocity.setTo(200, 0);
+    c.body.bounce.set(0.8);
+
+    var s = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
+    s.width = tileSize;
+    s.height = tileSize;
+    //s.body.immovable = true;
+    s.checkWorldBounds = true;
+    s.outOfBoundsKill = true;
+    // Make it move.
+    game.physics.arcade.enable(s);
+    s.body.velocity.setTo(200, 0);
+    s.body.bounce.set(0.8);
+  }
+}
+
 function makeLayer(y) {
   // First check if we have had enough free space between obstacles.
   var maxobs = Math.max(lowest(platforms), lowest(fans), lowest(lights), lowest(items));
@@ -351,6 +391,11 @@ function makeLayer(y) {
   if (fallDistance - lastCheckpoint > checkpointGap) {
     makeCheckpoint(y);
     lastCheckpoint = fallDistance;
+    return;
+  }
+
+  if (game.rnd.frac() < floatySpikeProb) {
+    makeFloatySpike(y);
     return;
   }
 
@@ -444,7 +489,7 @@ function create() {
     // Force jetpack to update with player.
     //player.addChild(jetpack);
     //player.update = function() { jetpack.update(); }
-    jetpack.start(false);
+    jetpack.start(false, 1000, 20);
     jetpack.on = false;
 
     ui = game.add.group();
@@ -676,8 +721,8 @@ function useJetpack(goleft) {
     
   jetpack.emitX = player.x + (goleft ? 30 : -30);
   jetpack.emitY = player.y;
-  jetpack.minParticleSpeed.set(-700 * mult, 0);
-  jetpack.maxParticleSpeed.set(-700 * mult, 0);
+  jetpack.minParticleSpeed.set(-200 * mult, 30);
+  jetpack.maxParticleSpeed.set(-700 * mult, -30);
   jetpack.on = true;
 }
 
@@ -685,6 +730,8 @@ function update() {
   // Check for collisions.
   game.physics.arcade.collide(player, walls);
   game.physics.arcade.collide(items, walls);
+  game.physics.arcade.collide(platforms, walls);
+  game.physics.arcade.collide(spikes, walls);
   game.physics.arcade.overlap(player, spikes, killPlayer);
   game.physics.arcade.overlap(player, items, collectItem);
   game.physics.arcade.overlap(player, leftFanWalls, function() {
@@ -751,7 +798,7 @@ function update() {
 
 function render() {
   //game.debug.cameraInfo(game.camera, 32, 32);
-  game.debug.spriteCoords(player, 32, 500);
+//  game.debug.spriteCoords(player, 32, 500);
 //  game.debug.spriteInfo(jetpack, 32, 500);
 //  game.debug.spriteCoords(jetpack, 32, 600);
   debugString = 'JP: ' + jetpack.x + ',' + jetpack.y + ' / ' + jetpack.emitX + ',' + jetpack.emitY;
