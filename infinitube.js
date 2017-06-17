@@ -17,32 +17,39 @@ PlayState.prototype = {
   render: render,
 };
 
-var screenWidth = 40;
-var screenHeight = 20;
-var worldWidth = 40;
-var worldHeight = 40;
-var tileSize = 32;
+const godMode = true;
 
-var platformProb = 0.1;
-var fanProb = 0.1;
-var spikeProb = 0.5;
-var gearProb = 0.2;
-var fuelProb = 0.05;
-var floatySpikeProb = 0.2;
-var minObstacleGap = tileSize * 4;
-var maxGears = 10;
-var baseFanVelocity = 300;
-var gearBenefit = 20;
-var fanSpin = 1000;
-var spinRate = 800;
-var checkpointGap = 10000;
-var tickRate = 100;
-var jetpackFuelRate = 1;
-var fuelbarWidth = 20;
-var fuelbarHeight = 400;
-var fuelbarX = (screenWidth * tileSize) - 100
-var fuelbarY = (screenHeight * tileSize) - fuelbarHeight - 30;
-var floatySpikeWidth = 3;
+const screenWidth = 40;
+const screenHeight = 20;
+const worldWidth = 40;
+const worldHeight = 40;
+const tileSize = 32;
+
+const platformProb = 0.1;
+const fanProb = 0.1;
+const spikeProb = 0.5;
+const gearProb = 0.2;
+const fuelProb = 0.05;
+const floatySpikeProb = 0.2;
+const minObstacleGap = tileSize * 4;
+const maxGears = 10;
+const baseFanVelocity = 300;
+const gearBenefit = 20;
+const fanSpin = 1000;
+const spinRate = 800;
+const checkpointGap = 1000; // XXX 10000
+const tickRate = 100;
+const jetpackFuelRate = 1;
+const fuelbarWidth = 20;
+const fuelbarHeight = 400;
+const fuelbarX = (screenWidth * tileSize) - 100
+const fuelbarY = (screenHeight * tileSize) - fuelbarHeight - 30;
+const floatySpikeWidth = 3;
+
+const WALL = 29;
+const PLATFORM_LEFT = 'platformIndustrial_035.png';
+const PLATFORM_CENTER = 'platformIndustrial_036.png';
+const PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
 var playerDead = false;
 var debugString = 'MDW';
@@ -52,6 +59,7 @@ var fallDistance = 0;
 var lastCheckpoint = 0;
 var lastHitCheckpoint = 0;
 var checkpointsTraversed = 0;
+var checkpointSeed = null;
 var lastTick = 0;
 var jetpackFuel = 100;
 
@@ -86,19 +94,12 @@ var leftFanWalls;
 var rightFanWalls;
 var lights;
 var scoreText;
-
 var bumpSound;
 var dieSound;
 var gearSound;
 var checkpointSound;
-
 var timer;
 var glow;
-
-var WALL = 29;
-var PLATFORM_LEFT = 'platformIndustrial_035.png';
-var PLATFORM_CENTER = 'platformIndustrial_036.png';
-var PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
 function makeWalls(y) {
   var wall;
@@ -198,12 +199,10 @@ function makeFan(x, y, onLeft) {
   // Start with an empty sprite to anchor things.
   var p = fans.getFirstDead(true, x * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_067.png');
-  //var p = game.add.sprite((worldWidth / 2 ) * tileSize, 150, 'platformerIndustrial', 'platformIndustrial_067.png');
   p.anchor.setTo(.5,.5);
   p.body.immovable = true;
   p.checkWorldBounds = true;
   p.outOfBoundsKill = true;
-  //p.body.angularVelocity = fanSpin;
 
   var c = game.add.sprite(0, 0, 'platformerIndustrial', 'platformIndustrial_067.png');
   if (c.fresh) {
@@ -238,8 +237,6 @@ function makeFan(x, y, onLeft) {
   fe.setAlpha(1, 0, 2000);
   fe.setScale(0.4, 0, 0.4, 0, 2000);
   fe.start(true, 2000, 250);
-  //fe.emitX = 0;
-  //fe.emitY = 0;
   var mult = onLeft ? -1 : 1;
   fe.minParticleSpeed.set(-400 * mult, 100);
   fe.maxParticleSpeed.set(-800 * mult, -100);
@@ -295,6 +292,11 @@ function makeCheckpoint(y) {
   cw._llg = llg;
   cw._rl = rl;
   cw._rlg = rlg;
+  cw._passed = false;
+
+  // Save the PRNG state associated with this checkpoint, so we can restore
+  // it when reanimating.
+  cw._seed = game.rnd.state();
 }
 
 function makeFuel(y) {
@@ -316,7 +318,6 @@ function makeFuel(y) {
 }
 
 function makeFloatySpike(y) {
-  console.log('makeFloatySpike ' + y);
   var left = PLATFORM_LEFT;
   var center = PLATFORM_CENTER;
   var right = PLATFORM_RIGHT;
@@ -438,6 +439,19 @@ function create() {
 
     game.world.setBounds(0, 0, worldWidth * tileSize, worldHeight * tileSize);
     game.stage.backgroundColor = '202020';
+
+    // XXX XXX XXX MDW STOPPED HERE.
+    // What we need to do is show a checkpoint first thing here, and then create
+    // world starting from that point. We need to confirm that it results in the
+    // same world state.
+    //
+    // Note that we probably also need to reset some of the global variables
+    // (like lastCheckpoint) to make sure that the functions that decide what to
+    // add next to the world do the same thing as before.
+    if (checkpointSeed != null) {
+      // Set PRNG seed
+      game.rnd.sow(checkpointSeed);
+    }
 
     // Glow effect for lights
     glow = new Phaser.Graphics(game, 0, 0)
@@ -638,13 +652,15 @@ function killPlayer() {
   colorChange.start();
 }
 
-function hitCheckpoint() {
-  // Avoid double-counting.
-  if (fallDistance <= lastHitCheckpoint + (checkpointGap / 2)) {
+function hitCheckpoint(p, cw) {
+  if (cw._passed) {
     return;
   }
+  cw._passed = true;
   checkpointsTraversed++;
-  scoreText.text = 'Checkpoints: ' + checkpointsTraversed;
+  checkpointSeed = cw._seed;
+  scoreText = game.add.text(16, 16, 'Checkpoints: ' + checkpointsTraversed,
+        { font: 'Bubbler One', fontSize: '32px', fill: '#ffffff' });
 
   lastHitCheckpoint = fallDistance;
   checkpointSound.play('', 0, 1, false, false);
@@ -727,7 +743,9 @@ function update() {
   game.physics.arcade.collide(items, walls);
   game.physics.arcade.collide(platforms, walls);
   game.physics.arcade.collide(spikes, walls);
-  game.physics.arcade.overlap(player, spikes, killPlayer);
+  if (!godMode) {
+    game.physics.arcade.overlap(player, spikes, killPlayer);
+  }
   game.physics.arcade.overlap(player, items, collectItem);
   game.physics.arcade.overlap(player, leftFanWalls, function() {
     player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
@@ -802,6 +820,6 @@ function render() {
 //  game.debug.spriteCoords(player, 32, 500);
 //  game.debug.spriteInfo(jetpack, 32, 500);
 //  game.debug.spriteCoords(jetpack, 32, 600);
-  debugString = 'JP: ' + jetpack.x + ',' + jetpack.y + ' / ' + jetpack.emitX + ',' + jetpack.emitY;
+  debugString = 'cp seed ' + checkpointSeed;
   game.debug.text(debugString, 32, 150);
 }
