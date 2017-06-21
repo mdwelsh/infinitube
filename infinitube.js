@@ -25,19 +25,20 @@ const worldWidth = 40;
 const worldHeight = 40;
 const tileSize = 32;
 
-const platformProb = 0.1;
-const fanProb = 0.1;
-const spikeProb = 0.5;
-const gearProb = 0.2;
-const fuelProb = 0.05;
-const floatySpikeProb = 0.2;
+const platformProb = 1.0;
+const fanProb = 1.0;
+const spikeProb = 1.0;
+const gearProb = 0.0;
+const fuelProb = 1.0;
+const floatySpikeProb = 0.0;
+
 const minObstacleGap = tileSize * 4;
 const maxGears = 10;
 const baseFanVelocity = 300;
 const gearBenefit = 20;
 const fanSpin = 1000;
 const spinRate = 800;
-const checkpointGap = 1000; // XXX 10000
+const checkpointGap = 50;
 const tickRate = 100;
 const jetpackFuelRate = 1;
 const fuelbarWidth = 20;
@@ -51,17 +52,18 @@ const PLATFORM_LEFT = 'platformIndustrial_035.png';
 const PLATFORM_CENTER = 'platformIndustrial_036.png';
 const PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
+
 var playerDead = false;
 var debugString = 'MDW';
 var fallRate = 0;
 var numGearsCollected = 0;
 var fallDistance = 0;
 var lastCheckpoint = 0;
-var lastHitCheckpoint = 0;
 var checkpointsTraversed = 0;
 var checkpointSeed = null;
 var lastTick = 0;
 var jetpackFuel = 100;
+
 
 function preload() {
   game.load.spritesheet('player', 'assets/player/p1_spritesheet.png', 72, 97, -1, 0, 1);
@@ -80,9 +82,11 @@ function preload() {
   game.load.audio('checkpoint', 'assets/sounds/sfx_menu_select1.wav');
 }
 
+var worldRnd;
 var player;
 var jetpack;
 var cursors;
+var markers;
 var platforms;
 var spikes;
 var items;
@@ -100,6 +104,8 @@ var gearSound;
 var checkpointSound;
 var timer;
 var glow;
+var killKey;
+var restartKey;
 
 function makeWalls(y) {
   var wall;
@@ -143,7 +149,7 @@ function makeWalls(y) {
   wall.outOfBoundsKill = true;
 }
 
-function makePlatform(x, y, width, onLeft) {
+function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
   var left = PLATFORM_LEFT;
   var center = PLATFORM_CENTER;
   var right = PLATFORM_RIGHT;
@@ -153,8 +159,6 @@ function makePlatform(x, y, width, onLeft) {
     right = PLATFORM_CENTER;
   }
 
-  var hasSpikes = (game.rnd.frac() <= spikeProb);
-  var hasGear = (game.rnd.frac() <= gearProb);
 
   for (var i = 0; i < width; i++) {
     var side = center;
@@ -292,11 +296,12 @@ function makeCheckpoint(y) {
   cw._llg = llg;
   cw._rl = rl;
   cw._rlg = rlg;
+  cw._layer = curLayer;
   cw._passed = false;
 
   // Save the PRNG state associated with this checkpoint, so we can restore
   // it when reanimating.
-  cw._seed = game.rnd.state();
+  cw._seed = worldRnd.state();
 }
 
 function makeFuel(y) {
@@ -323,8 +328,6 @@ function makeFloatySpike(y) {
   var right = PLATFORM_RIGHT;
   var x = (worldWidth / 2);
 
-  var fs = game.add.group();
-
   for (var i = 0; i < floatySpikeWidth; i++) {
     var side = center;
     if (i == 0) {
@@ -332,7 +335,7 @@ function makeFloatySpike(y) {
     } else if (i == floatySpikeWidth-1) {
       side = right;
     }
-    var c = fs.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
+    var c = platforms.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
     c.width = tileSize;
     c.height = tileSize/2;
     c.checkWorldBounds = true;
@@ -342,7 +345,7 @@ function makeFloatySpike(y) {
     c.body.velocity.setTo(200, 0);
     c.body.bounce.set(0.8);
 
-    var s = fs.create((x + i) * tileSize, (y-1) * tileSize, 'spikes');
+    var s = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
     s.width = tileSize;
     s.height = tileSize;
     s.checkWorldBounds = true;
@@ -352,60 +355,90 @@ function makeFloatySpike(y) {
     s.body.velocity.setTo(200, 0);
     s.body.bounce.set(0.8);
   }
-
-  platforms.add(fs);
 }
 
-function makeLayer(y) {
-  // First check if we have had enough free space between obstacles.
-  var maxobs = Math.max(lowest(platforms), lowest(fans), lowest(lights), lowest(items));
-  var ok = ((y * tileSize) - maxobs) >= minObstacleGap;
+var curLayer = -1;
 
-  if (!ok) {
+function makeLayer(y) {
+  // Markers are only used to find out if the world has scrolled up
+  // by at least one tile since the last call to makeLayer.
+  var maxMarker = lowest(markers);
+  if (((y * tileSize) - maxMarker) < tileSize) {
+    return;
+  }
+  // OK, create a new layer.
+  curLayer++;
+  var marker = markers.create(0, y * tileSize);
+  marker.body.immovable = true;
+  marker.checkWorldBounds = true;
+  marker.outOfBoundsKill = true;
+  marker._layer = curLayer;
+  debugString = 'curLayer ' + curLayer + ' lc ' + lastCheckpoint + ' gap ' + checkpointGap;
+
+  if (curLayer - lastCheckpoint > checkpointGap) {
+    makeCheckpoint(y);
+    lastCheckpoint = curLayer;
+    console.log('LAYER ' + curLayer + ' - checkpoint');
     return;
   }
 
-  if (game.rnd.frac() < platformProb) {
-    var width = game.rnd.integerInRange(3, 8);
-    if (game.rnd.frac() < 0.5) {
-      makePlatform(10, y, width, true);
+  // Next check if we have had enough free space between obstacles.
+  var maxobs = Math.max(lowest(platforms), lowest(fans), lowest(lights), lowest(items));
+  var ok = ((y * tileSize) - maxobs) >= minObstacleGap;
+  if (!ok) {
+    return;
+  }
+  
+  // This code is a little funky since we want to ensure that the PRNG
+  // is called the same number of times for each codepath.
+  var platformWidth = worldRnd.integerInRange(3, 8);
+  var onleft = (worldRnd.frac() <= 0.5);
+  var hasSpikes = (worldRnd.frac() <= spikeProb);
+  var hasGear = (worldRnd.frac() <= gearProb);
+
+  if (worldRnd.frac() < platformProb) {
+    if (onleft) {
+      console.log('LAYER ' + curLayer + ' - platform left ' + platformWidth);
+      makePlatform(10, y, platformWidth, true, hasSpikes, hasGear);
     } else {
-      makePlatform(worldWidth - (10 + width), y, width, false);
+      console.log('LAYER ' + curLayer + ' - platform right ' + platformWidth);
+      makePlatform(worldWidth - (10 + platformWidth), y, platformWidth, false,
+          hasSpikes, hasGear);
     }
     return;
   }
 
-  if (game.rnd.frac() < fanProb) {
-    if (game.rnd.frac() < 0.5) {
+  if (worldRnd.frac() < fanProb) {
+    if (onleft) {
+      console.log('LAYER ' + curLayer + ' - fan left');
       makeFan(10, y, true);
     } else {
+      console.log('LAYER ' + curLayer + ' - fan right');
       makeFan(worldWidth - 10, y, false);
     }
     return;
   }
 
-  if (fallDistance - lastCheckpoint > checkpointGap) {
-    makeCheckpoint(y);
-    lastCheckpoint = fallDistance;
-    return;
-  }
-
-  if (game.rnd.frac() < floatySpikeProb) {
+  if (worldRnd.frac() < floatySpikeProb) {
+    console.log('LAYER ' + curLayer + ' - floaty');
     makeFloatySpike(y);
     return;
   }
 
-  if (game.rnd.frac() < fuelProb) {
+  if (worldRnd.frac() < fuelProb) {
+    console.log('LAYER ' + curLayer + ' - fuel');
     makeFuel(y);
     return;
   }
 }
 
 function buildWorld() {
+  console.log('BUILDWORLD START --------------');
   for (y = 0; y < worldHeight; y++) {
     makeWalls(y);
     makeLayer(y);
   }
+  console.log('BUILDWORLD END --------------');
 }
 
 function highest(group) {
@@ -432,8 +465,18 @@ function addToWorld() {
   makeLayer(screenHeight + 2);
 }
 
+function restartGame() {
+  if (!playerDead) {
+    return;
+  }
+  playerDead = false;
+  game.state.start('play');
+}
+
 
 function create() {
+    worldRnd = new Phaser.RandomDataGenerator([123]);
+
     // We're going to be using physics, so enable the Arcade Physics system
     game.physics.startSystem(Phaser.Physics.ARCADE);
 
@@ -448,9 +491,30 @@ function create() {
     // Note that we probably also need to reset some of the global variables
     // (like lastCheckpoint) to make sure that the functions that decide what to
     // add next to the world do the same thing as before.
+    //
+    // XXX MDW - Looks like even using the same seed all the time I'm getting different results.
+    // Possibly because the generator is getting used for things like particles when I move and
+    // from fans? Do I need a separate PNRG (not game.rnd) for world building?
+    // Even doing this doesn't *seem* to generate consistent results, but maybe it has something
+    // to do with the dependency on fallDistance and lastCheckpoint.
+    //
+    // XXX MDW - Looking at this, it seems the problem is not the creation of world
+    // elements but rather that the checkpoints "get in the way" since they are generated
+    // at fairly random intervals, depending on how fast you fall (due to the sampling
+    // used to compute fallDistance). Two options:
+    // (1) Inject checkpoints irrespective of platforms etc. - that is, decouple them
+    // from the world construction.
+    // (2) Be more precise, for example, by keeping a running counter of the "virtual y"
+    // value whenever we add a new layer. Essentially every layer ends up with an invisible
+    // sprite maintaining the 'tile layer count' for that layer. We can then decide
+    // whether to add a checkpoint based on that count, rather than based on fallDistance.
+    //
     if (checkpointSeed != null) {
       // Set PRNG seed
-      game.rnd.sow(checkpointSeed);
+      //game.rnd.sow(checkpointSeed);
+      //game.rnd.sow([123]);
+    } else {
+      //game.rnd.sow([123]);
     }
 
     // Glow effect for lights
@@ -503,7 +567,8 @@ function create() {
 
     walls = game.add.group();
     walls.enableBody = true;
-
+    markers = game.add.group();
+    markers.enableBody = true;
     platforms = game.add.group();
     platforms.enableBody = true;
     spikes = game.add.group();
@@ -529,6 +594,10 @@ function create() {
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
+    killKey = game.input.keyboard.addKey(Phaser.Keyboard.K);
+    killKey.onDown.add(killPlayer, this);
+    restartKey = game.input.keyboard.addKey(Phaser.Keyboard.G);
+    restartKey.onDown.add(restartGame, this);
 
     // Stack things.
     game.world.bringToTop(walls);
@@ -656,13 +725,17 @@ function hitCheckpoint(p, cw) {
   if (cw._passed) {
     return;
   }
+  console.log('HIT CHECKPOINT ' + cw._layer + ' seed ' + cw._seed);
   cw._passed = true;
   checkpointsTraversed++;
   checkpointSeed = cw._seed;
+
+  if (scoreText != null) {
+    scoreText.destroy();
+  }
   scoreText = game.add.text(16, 16, 'Checkpoints: ' + checkpointsTraversed,
         { font: 'Bubbler One', fontSize: '32px', fill: '#ffffff' });
 
-  lastHitCheckpoint = fallDistance;
   checkpointSound.play('', 0, 1, false, false);
 
   // Change the color of the checkpoint lights. This is a bit crude; each light
@@ -783,6 +856,9 @@ function update() {
   }
 
   // Slide platforms and fans up.
+  markers.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
   platforms.forEachAlive(function(c) {
     if (c && c.body) {
       c.body.velocity.y = -1 * fallRate;
@@ -820,6 +896,6 @@ function render() {
 //  game.debug.spriteCoords(player, 32, 500);
 //  game.debug.spriteInfo(jetpack, 32, 500);
 //  game.debug.spriteCoords(jetpack, 32, 600);
-  debugString = 'cp seed ' + checkpointSeed;
+//  debugString = 'cp seed ' + checkpointSeed;
   game.debug.text(debugString, 32, 150);
 }
