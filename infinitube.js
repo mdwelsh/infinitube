@@ -4,7 +4,9 @@
 //   from that point.
 // Death (go back to last checkpoint)
 // Middle platforms (also moving platforms)
-// Up packs
+// Parachutes
+// Worms
+// Lasers
 // Music
 // Pause
 
@@ -32,7 +34,7 @@ const gearProb = 0.0;
 const fuelProb = 1.0;
 const floatySpikeProb = 0.0;
 
-const minObstacleGap = tileSize * 4;
+const minObstacleGap = 4;
 const maxGears = 10;
 const baseFanVelocity = 300;
 const gearBenefit = 20;
@@ -52,8 +54,8 @@ const PLATFORM_LEFT = 'platformIndustrial_035.png';
 const PLATFORM_CENTER = 'platformIndustrial_036.png';
 const PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
-
 var playerDead = false;
+var curLayer = -1;
 var debugString = 'MDW';
 var fallRate = 0;
 var numGearsCollected = 0;
@@ -173,6 +175,7 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
     c.body.immovable = true;
     c.checkWorldBounds = true;
     c.outOfBoundsKill = true;
+    c._layer = curLayer;
 
     if (hasSpikes) {
       c = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
@@ -181,6 +184,7 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
       c.body.immovable = true;
       c.checkWorldBounds = true;
       c.outOfBoundsKill = true;
+      c._layer = curLayer;
     }
   }
 
@@ -196,6 +200,7 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
     c.checkWorldBounds = true;
     c.outOfBoundsKill = true;
     c._itemType = 'gear';
+    c._layer = curLayer;
   }
 }
 
@@ -207,6 +212,7 @@ function makeFan(x, y, onLeft) {
   p.body.immovable = true;
   p.checkWorldBounds = true;
   p.outOfBoundsKill = true;
+  p._layer = curLayer;
 
   var c = game.add.sprite(0, 0, 'platformerIndustrial', 'platformIndustrial_067.png');
   if (c.fresh) {
@@ -259,6 +265,7 @@ function makeCheckpoint(y) {
   ll.body.immovable = true;
   ll.checkWorldBounds = true;
   ll.outOfBoundsKill = true;
+  ll._layer = curLayer;
 
   // Left light glow.
   var llg = lights.create(11.1 * tileSize, y * tileSize, glow);
@@ -268,6 +275,7 @@ function makeCheckpoint(y) {
   llg.outOfBoundsKill = true;
   game.add.tween(llg).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true,
       0, -1, true);
+  llg._layer = curLayer;
 
   // Right light.
   var rl = lights.create((worldWidth - 10.5) * tileSize,
@@ -277,6 +285,7 @@ function makeCheckpoint(y) {
   rl.body.immovable = true;
   rl.checkWorldBounds = true;
   rl.outOfBoundsKill = true;
+  rl._layer = curLayer;
 
   // Right light glow.
   var rlg = lights.create((worldWidth - 11.2) * tileSize,
@@ -287,6 +296,7 @@ function makeCheckpoint(y) {
   rlg.outOfBoundsKill = true;
   game.add.tween(rlg).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true,
       0, -1, true);
+  rlg._layer = curLayer;
 
   // Invisible checkpoint wall.
   var cw;
@@ -296,8 +306,8 @@ function makeCheckpoint(y) {
   cw._llg = llg;
   cw._rl = rl;
   cw._rlg = rlg;
-  cw._layer = curLayer;
   cw._passed = false;
+  cw._layer = curLayer;
 
   // Save the PRNG state associated with this checkpoint, so we can restore
   // it when reanimating.
@@ -357,16 +367,9 @@ function makeFloatySpike(y) {
   }
 }
 
-var curLayer = -1;
 
 function makeLayer(y) {
-  // Markers are only used to find out if the world has scrolled up
-  // by at least one tile since the last call to makeLayer.
-  var maxMarker = lowest(markers);
-  if (((y * tileSize) - maxMarker) < tileSize) {
-    return;
-  }
-  // OK, create a new layer.
+  // Create a new layer.
   curLayer++;
   var marker = markers.create(0, y * tileSize);
   marker.body.immovable = true;
@@ -375,16 +378,28 @@ function makeLayer(y) {
   marker._layer = curLayer;
   debugString = 'curLayer ' + curLayer + ' lc ' + lastCheckpoint + ' gap ' + checkpointGap;
 
+  console.log('MAKE LAYER ' + curLayer + ' lc ' + lastCheckpoint);
   if (curLayer - lastCheckpoint > checkpointGap) {
     makeCheckpoint(y);
     lastCheckpoint = curLayer;
-    console.log('LAYER ' + curLayer + ' - checkpoint');
+    console.log('  - checkpoint');
     return;
   }
 
+  // XXX MDW - STOPPED HERE - Not quite sure why this isn't working.
+  // Maybe I need to tag everything I create with 'curLayer' and use that
+  // instead of the actual y value, which maybe varies based on velocity.
+  // That way I do everything based on the markers and never rely on the
+  // screen y-position of an item.
+
   // Next check if we have had enough free space between obstacles.
-  var maxobs = Math.max(lowest(platforms), lowest(fans), lowest(lights), lowest(items));
-  var ok = ((y * tileSize) - maxobs) >= minObstacleGap;
+  var maxobs = lowest([platforms, fans, lights, items]);
+  var maxLayer = 0;
+  if (maxobs && maxobs._layer) {
+    maxLayer = maxobs._layer;
+  }
+  console.log('   maxLayer ' + maxLayer + ' diff ' + (curLayer - maxLayer));
+  var ok = (curLayer - maxLayer) >= minObstacleGap;
   if (!ok) {
     return;
   }
@@ -398,10 +413,10 @@ function makeLayer(y) {
 
   if (worldRnd.frac() < platformProb) {
     if (onleft) {
-      console.log('LAYER ' + curLayer + ' - platform left ' + platformWidth);
+      console.log('  - platform left ' + platformWidth);
       makePlatform(10, y, platformWidth, true, hasSpikes, hasGear);
     } else {
-      console.log('LAYER ' + curLayer + ' - platform right ' + platformWidth);
+      console.log('  - platform right ' + platformWidth);
       makePlatform(worldWidth - (10 + platformWidth), y, platformWidth, false,
           hasSpikes, hasGear);
     }
@@ -410,26 +425,28 @@ function makeLayer(y) {
 
   if (worldRnd.frac() < fanProb) {
     if (onleft) {
-      console.log('LAYER ' + curLayer + ' - fan left');
+      console.log('  - fan left');
       makeFan(10, y, true);
     } else {
-      console.log('LAYER ' + curLayer + ' - fan right');
+      console.log('  - fan right');
       makeFan(worldWidth - 10, y, false);
     }
     return;
   }
 
   if (worldRnd.frac() < floatySpikeProb) {
-    console.log('LAYER ' + curLayer + ' - floaty');
+    console.log('  - floaty');
     makeFloatySpike(y);
     return;
   }
 
   if (worldRnd.frac() < fuelProb) {
-    console.log('LAYER ' + curLayer + ' - fuel');
+    console.log('  - fuel');
     makeFuel(y);
     return;
   }
+
+  console.log('  - i got nuthin');
 }
 
 function buildWorld() {
@@ -451,25 +468,43 @@ function highest(group) {
   return miny;
 }
 
-function lowest(group) {
+function lowest(groups) {
+  var low = null;
   var maxy = 0;
-  group.forEachAlive(function(c) {
-    if (c.y < game.world.height) {
-      maxy = Math.max(c.y, maxy);
-    }
+  groups.forEach(function(g) {
+    g.forEachAlive(function(c) {
+      if (c.y < game.world.height) {
+        if (c.y > maxy) {
+          maxy = c.y;
+          low = c;
+        }
+      }
+    });
   });
-  return maxy;
+  return low;
 }
 
 function addToWorld() {
-  makeLayer(screenHeight + 2);
+  // Find the lowest marker and add tiles below it.
+  var lowestMarker = lowest([markers]);
+  var lowestTile = Math.floor(lowestMarker.y / tileSize);
+  // XXX MDW Debugging only
+  //if (lowestTile+1 < worldHeight) {
+    //console.log('ADD TO WORLD: ' + lowestTile + ' to ' + worldHeight);
+  //}
+  for (var y = lowestTile+1; y < worldHeight; y++) {
+    makeLayer(y);
+  }
 }
 
 function restartGame() {
   if (!playerDead) {
     return;
   }
+  console.log('---- RESTART ----');
   playerDead = false;
+  curLayer = -1;
+  lastCheckpoint = 0;
   game.state.start('play');
 }
 
@@ -688,7 +723,7 @@ function killPlayer() {
   if (playerDead) {
     return;
   }
-
+  console.log('---- KILL PLAYER ----');
   playerDead = true;
   // Play the sound
   dieSound.play('', 0, 1, false, false);
