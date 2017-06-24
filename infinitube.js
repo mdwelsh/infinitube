@@ -312,6 +312,7 @@ function makeCheckpoint(y) {
   // Save the PRNG state associated with this checkpoint, so we can restore
   // it when reanimating.
   cw._seed = worldRnd.state();
+  return cw._seed;
 }
 
 function makeFuel(y) {
@@ -380,17 +381,11 @@ function makeLayer(y) {
 
   console.log('MAKE LAYER ' + curLayer + ' lc ' + lastCheckpoint);
   if (curLayer - lastCheckpoint > checkpointGap) {
-    makeCheckpoint(y);
+    var seed = makeCheckpoint(y);
     lastCheckpoint = curLayer;
-    console.log('  - checkpoint');
+    console.log('  - checkpoint seed=' + seed);
     return;
   }
-
-  // XXX MDW - STOPPED HERE - Not quite sure why this isn't working.
-  // Maybe I need to tag everything I create with 'curLayer' and use that
-  // instead of the actual y value, which maybe varies based on velocity.
-  // That way I do everything based on the markers and never rely on the
-  // screen y-position of an item.
 
   // Next check if we have had enough free space between obstacles.
   var maxobs = lowest([platforms, fans, lights, items]);
@@ -398,7 +393,6 @@ function makeLayer(y) {
   if (maxobs && maxobs._layer) {
     maxLayer = maxobs._layer;
   }
-  console.log('   maxLayer ' + maxLayer + ' diff ' + (curLayer - maxLayer));
   var ok = (curLayer - maxLayer) >= minObstacleGap;
   if (!ok) {
     return;
@@ -406,6 +400,8 @@ function makeLayer(y) {
   
   // This code is a little funky since we want to ensure that the PRNG
   // is called the same number of times for each codepath.
+  // (This is probably not necessary.)
+  console.log('CALLING WORLDRND - SEED ' + worldRnd.state());
   var platformWidth = worldRnd.integerInRange(3, 8);
   var onleft = (worldRnd.frac() <= 0.5);
   var hasSpikes = (worldRnd.frac() <= spikeProb);
@@ -488,10 +484,6 @@ function addToWorld() {
   // Find the lowest marker and add tiles below it.
   var lowestMarker = lowest([markers]);
   var lowestTile = Math.floor(lowestMarker.y / tileSize);
-  // XXX MDW Debugging only
-  //if (lowestTile+1 < worldHeight) {
-    //console.log('ADD TO WORLD: ' + lowestTile + ' to ' + worldHeight);
-  //}
   for (var y = lowestTile+1; y < worldHeight; y++) {
     makeLayer(y);
   }
@@ -502,55 +494,39 @@ function restartGame() {
     return;
   }
   console.log('---- RESTART ----');
+
+  // Want to ensure we start building the world from the last checkpoint.
+  // Reset curLayer to be the last checkpoint layer minus one (so buildWorld
+  // will start by creating that layer), and reset lastCheckpoint to be just
+  // behind checkpointGap so it will force the checkpoint to be the first
+  // thing created.
+  curLayer = lastCheckpoint-1;
+  lastCheckpoint = curLayer - (checkpointGap + 2);
+
+  fallRate = 0;
+  numGearsCollected = 0;
+  jetpackFuel = 100;
   playerDead = false;
-  curLayer = -1;
-  lastCheckpoint = 0;
   game.state.start('play');
 }
 
-
 function create() {
-    worldRnd = new Phaser.RandomDataGenerator([123]);
+    if (checkpointSeed != null) {
+      // Set PRNG seed
+      console.log('SETTING SEED: ' + checkpointSeed);
+      //worldRnd.sow(checkpointSeed);
+      worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
+      console.log('SEED NOW: ' + worldRnd.state());
+      console.log('SEED NOW 2: ' + worldRnd.state());
+    } else {
+      worldRnd = new Phaser.RandomDataGenerator([123]);
+    }
 
     // We're going to be using physics, so enable the Arcade Physics system
     game.physics.startSystem(Phaser.Physics.ARCADE);
 
     game.world.setBounds(0, 0, worldWidth * tileSize, worldHeight * tileSize);
     game.stage.backgroundColor = '202020';
-
-    // XXX XXX XXX MDW STOPPED HERE.
-    // What we need to do is show a checkpoint first thing here, and then create
-    // world starting from that point. We need to confirm that it results in the
-    // same world state.
-    //
-    // Note that we probably also need to reset some of the global variables
-    // (like lastCheckpoint) to make sure that the functions that decide what to
-    // add next to the world do the same thing as before.
-    //
-    // XXX MDW - Looks like even using the same seed all the time I'm getting different results.
-    // Possibly because the generator is getting used for things like particles when I move and
-    // from fans? Do I need a separate PNRG (not game.rnd) for world building?
-    // Even doing this doesn't *seem* to generate consistent results, but maybe it has something
-    // to do with the dependency on fallDistance and lastCheckpoint.
-    //
-    // XXX MDW - Looking at this, it seems the problem is not the creation of world
-    // elements but rather that the checkpoints "get in the way" since they are generated
-    // at fairly random intervals, depending on how fast you fall (due to the sampling
-    // used to compute fallDistance). Two options:
-    // (1) Inject checkpoints irrespective of platforms etc. - that is, decouple them
-    // from the world construction.
-    // (2) Be more precise, for example, by keeping a running counter of the "virtual y"
-    // value whenever we add a new layer. Essentially every layer ends up with an invisible
-    // sprite maintaining the 'tile layer count' for that layer. We can then decide
-    // whether to add a checkpoint based on that count, rather than based on fallDistance.
-    //
-    if (checkpointSeed != null) {
-      // Set PRNG seed
-      //game.rnd.sow(checkpointSeed);
-      //game.rnd.sow([123]);
-    } else {
-      //game.rnd.sow([123]);
-    }
 
     // Glow effect for lights
     glow = new Phaser.Graphics(game, 0, 0)
