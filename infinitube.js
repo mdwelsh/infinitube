@@ -1,8 +1,5 @@
 // TODO
 //
-// Checkpoints -- this will require resetting random number generator so we can re-create the world
-//   from that point.
-// Death (go back to last checkpoint)
 // Middle platforms (also moving platforms)
 // Parachutes
 // Worms
@@ -27,12 +24,12 @@ const worldWidth = 40;
 const worldHeight = 40;
 const tileSize = 32;
 
-const platformProb = 1.0;
-const fanProb = 1.0;
-const spikeProb = 1.0;
-const gearProb = 0.0;
-const fuelProb = 1.0;
-const floatySpikeProb = 0.0;
+const platformProb = 0.00;
+const fanProb = 0.00;
+const spikeProb = 0.00;
+const gearProb = 0.00;
+const fuelProb = 0.00;
+const floatySpikeProb = 1.00;
 
 const minObstacleGap = 4;
 const maxGears = 10;
@@ -56,11 +53,14 @@ const PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
 var playerDead = false;
 var curLayer = -1;
+var lastPopulatedLayer = 0;
+var lastCheckpointLastPopulatedLayer = 0;
 var debugString = 'MDW';
 var fallRate = 0;
 var numGearsCollected = 0;
 var fallDistance = 0;
-var lastCheckpoint = 0;
+var lastCheckpointCreated = 0;
+var lastCheckpointTraversed = 0;
 var checkpointsTraversed = 0;
 var checkpointSeed = null;
 var lastTick = 0;
@@ -308,6 +308,7 @@ function makeCheckpoint(y) {
   cw._rlg = rlg;
   cw._passed = false;
   cw._layer = curLayer;
+  cw._lastPopulatedLayer = lastPopulatedLayer;
 
   // Save the PRNG state associated with this checkpoint, so we can restore
   // it when reanimating.
@@ -339,6 +340,18 @@ function makeFloatySpike(y) {
   var right = PLATFORM_RIGHT;
   var x = (worldWidth / 2);
 
+  var container = game.add.group();
+  container.enableBody = true;
+
+//  var container = game.add.sprite(x * tileSize, y * tileSize);
+//  game.physics.arcade.enable(container);
+//  container.scale.x = floatySpikeWidth * tileSize;
+//  container.scale.y = tileSize / 2;
+//  container.checkWorldBounds = true;
+//  container.outOfBoundsKill = true;
+//  container.body.velocity.setTo(200, 0);
+//  container.body.bounce.set(0.8);
+
   for (var i = 0; i < floatySpikeWidth; i++) {
     var side = center;
     if (i == 0) {
@@ -346,7 +359,8 @@ function makeFloatySpike(y) {
     } else if (i == floatySpikeWidth-1) {
       side = right;
     }
-    var c = platforms.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
+
+    var c = container.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
     c.width = tileSize;
     c.height = tileSize/2;
     c.checkWorldBounds = true;
@@ -355,8 +369,9 @@ function makeFloatySpike(y) {
     game.physics.arcade.enable(c);
     c.body.velocity.setTo(200, 0);
     c.body.bounce.set(0.8);
+    container.addChild(c);
 
-    var s = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
+    var s = container.create((x + i) * tileSize, (y-1) * tileSize, 'spikes');
     s.width = tileSize;
     s.height = tileSize;
     s.checkWorldBounds = true;
@@ -365,9 +380,9 @@ function makeFloatySpike(y) {
     game.physics.arcade.enable(s);
     s.body.velocity.setTo(200, 0);
     s.body.bounce.set(0.8);
+    container.addChild(s);
   }
 }
-
 
 function makeLayer(y) {
   // Create a new layer.
@@ -377,23 +392,17 @@ function makeLayer(y) {
   marker.checkWorldBounds = true;
   marker.outOfBoundsKill = true;
   marker._layer = curLayer;
-  debugString = 'curLayer ' + curLayer + ' lc ' + lastCheckpoint + ' gap ' + checkpointGap;
 
-  console.log('MAKE LAYER ' + curLayer + ' lc ' + lastCheckpoint);
-  if (curLayer - lastCheckpoint > checkpointGap) {
+  if ((curLayer - lastCheckpointCreated >= checkpointGap) &&
+      (curLayer - lastPopulatedLayer >= minObstacleGap)) {
     var seed = makeCheckpoint(y);
-    lastCheckpoint = curLayer;
-    console.log('  - checkpoint seed=' + seed);
+    lastCheckpointCreated = curLayer;
+    lastPopulatedLater = curLayer;
     return;
   }
 
   // Next check if we have had enough free space between obstacles.
-  var maxobs = lowest([platforms, fans, lights, items]);
-  var maxLayer = 0;
-  if (maxobs && maxobs._layer) {
-    maxLayer = maxobs._layer;
-  }
-  var ok = (curLayer - maxLayer) >= minObstacleGap;
+  var ok = (curLayer - lastPopulatedLayer) >= minObstacleGap;
   if (!ok) {
     return;
   }
@@ -401,57 +410,50 @@ function makeLayer(y) {
   // This code is a little funky since we want to ensure that the PRNG
   // is called the same number of times for each codepath.
   // (This is probably not necessary.)
-  console.log('CALLING WORLDRND - SEED ' + worldRnd.state());
   var platformWidth = worldRnd.integerInRange(3, 8);
   var onleft = (worldRnd.frac() <= 0.5);
   var hasSpikes = (worldRnd.frac() <= spikeProb);
-  var hasGear = (worldRnd.frac() <= gearProb);
+  var hasGear = !hasSpikes;
 
   if (worldRnd.frac() < platformProb) {
     if (onleft) {
-      console.log('  - platform left ' + platformWidth);
       makePlatform(10, y, platformWidth, true, hasSpikes, hasGear);
     } else {
-      console.log('  - platform right ' + platformWidth);
       makePlatform(worldWidth - (10 + platformWidth), y, platformWidth, false,
           hasSpikes, hasGear);
     }
+    lastPopulatedLayer = curLayer;
     return;
   }
 
   if (worldRnd.frac() < fanProb) {
     if (onleft) {
-      console.log('  - fan left');
       makeFan(10, y, true);
     } else {
-      console.log('  - fan right');
       makeFan(worldWidth - 10, y, false);
     }
+    lastPopulatedLayer = curLayer;
     return;
   }
 
   if (worldRnd.frac() < floatySpikeProb) {
-    console.log('  - floaty');
     makeFloatySpike(y);
+    lastPopulatedLayer = curLayer;
     return;
   }
 
   if (worldRnd.frac() < fuelProb) {
-    console.log('  - fuel');
     makeFuel(y);
+    lastPopulatedLayer = curLayer;
     return;
   }
-
-  console.log('  - i got nuthin');
 }
 
 function buildWorld() {
-  console.log('BUILDWORLD START --------------');
   for (y = 0; y < worldHeight; y++) {
     makeWalls(y);
     makeLayer(y);
   }
-  console.log('BUILDWORLD END --------------');
 }
 
 function highest(group) {
@@ -493,15 +495,16 @@ function restartGame() {
   if (!playerDead) {
     return;
   }
-  console.log('---- RESTART ----');
 
   // Want to ensure we start building the world from the last checkpoint.
-  // Reset curLayer to be the last checkpoint layer minus one (so buildWorld
-  // will start by creating that layer), and reset lastCheckpoint to be just
-  // behind checkpointGap so it will force the checkpoint to be the first
-  // thing created.
-  curLayer = lastCheckpoint-1;
-  lastCheckpoint = curLayer - (checkpointGap + 2);
+  // Reset curLayer to be the last checkpoint traversed minus one (so buildWorld
+  // will start by creating that layer), and reset lastCheckpointCreated to be
+  // just behind checkpointGap so it will force the checkpoint to be the
+  // first thing created. Also set lastPopulatedLayer to the value at the
+  // last checkpoint we traversed.
+  curLayer = lastCheckpointTraversed - 1;
+  lastPopulatedLayer = lastCheckpointLastPopulatedLayer - 1;
+  lastCheckpointCreated = curLayer - (checkpointGap + 2);
 
   fallRate = 0;
   numGearsCollected = 0;
@@ -512,12 +515,7 @@ function restartGame() {
 
 function create() {
     if (checkpointSeed != null) {
-      // Set PRNG seed
-      console.log('SETTING SEED: ' + checkpointSeed);
-      //worldRnd.sow(checkpointSeed);
       worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
-      console.log('SEED NOW: ' + worldRnd.state());
-      console.log('SEED NOW 2: ' + worldRnd.state());
     } else {
       worldRnd = new Phaser.RandomDataGenerator([123]);
     }
@@ -699,7 +697,6 @@ function killPlayer() {
   if (playerDead) {
     return;
   }
-  console.log('---- KILL PLAYER ----');
   playerDead = true;
   // Play the sound
   dieSound.play('', 0, 1, false, false);
@@ -736,8 +733,13 @@ function hitCheckpoint(p, cw) {
   if (cw._passed) {
     return;
   }
-  console.log('HIT CHECKPOINT ' + cw._layer + ' seed ' + cw._seed);
   cw._passed = true;
+  lastCheckpointTraversed = cw._layer;
+  // This is the value of lastPopulatedLayer as seen at this checkpoint.
+  // We save it here since if we die before the next checkpoint,
+  // we need to restore this value so that the world will be rebuilt
+  // correctly.
+  lastCheckpointLastPopulatedLayer = cw._lastPopulatedLayer;
   checkpointsTraversed++;
   checkpointSeed = cw._seed;
 
