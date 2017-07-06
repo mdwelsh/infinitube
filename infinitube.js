@@ -81,6 +81,7 @@ function preload() {
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
   game.load.audio('gear', 'assets/sounds/sfx_coin_cluster3.wav');
   game.load.audio('checkpoint', 'assets/sounds/sfx_menu_select1.wav');
+  game.load.audio('music', 'assets/awake10_megaWall.mp3');
 }
 
 var worldRnd;
@@ -109,6 +110,7 @@ var timer;
 var glow;
 var killKey;
 var restartKey;
+var music;
 
 function makeWalls(y) {
   var wall;
@@ -594,6 +596,12 @@ function create() {
     restartKey = game.input.keyboard.addKey(Phaser.Keyboard.G);
     restartKey.onDown.add(restartGame, this);
 
+    // Music.
+    music = new Phaser.Sound(game, 'music', 1, true);
+    game.time.events.add(Phaser.Timer.SECOND, function() {
+      music.loopFull();
+    });
+
     // Stack things.
     game.world.bringToTop(walls);
     game.world.bringToTop(collectedGears);
@@ -684,8 +692,8 @@ function killPlayer() {
     return;
   }
   playerDead = true;
-  // Play the sound
   dieSound.play('', 0, 1, false, false);
+  music.stop();
 
   // Stop the player
   jetpack.on = false;
