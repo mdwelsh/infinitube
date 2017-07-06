@@ -1,10 +1,8 @@
 // TODO
 //
-// Middle platforms (also moving platforms)
 // Parachutes
 // Worms
 // Lasers
-// Music
 // Pause
 
 var PlayState = function () {};
