@@ -24,12 +24,11 @@ const worldWidth = 40;
 const worldHeight = 40;
 const tileSize = 32;
 
-const platformProb = 0.00;
-const fanProb = 0.00;
-const spikeProb = 0.00;
-const gearProb = 0.00;
-const fuelProb = 0.00;
-const floatySpikeProb = 1.00;
+const platformProb = 0.1;
+const spikeProb = 0.7;
+const fanProb = 0.1;
+const fuelProb = 0.1;
+const floatySpikeProb = 0.05;
 
 const minObstacleGap = 4;
 const maxGears = 10;
@@ -91,6 +90,7 @@ var cursors;
 var markers;
 var platforms;
 var spikes;
+var floatySpikes;
 var items;
 var collectedGears;
 var fans;
@@ -99,6 +99,7 @@ var ui;
 var leftFanWalls;
 var rightFanWalls;
 var lights;
+var floatySpike;
 var scoreText;
 var bumpSound;
 var dieSound;
@@ -335,53 +336,13 @@ function makeFuel(y) {
 }
 
 function makeFloatySpike(y) {
-  var left = PLATFORM_LEFT;
-  var center = PLATFORM_CENTER;
-  var right = PLATFORM_RIGHT;
-  var x = (worldWidth / 2);
-
-  var container = game.add.group();
-  container.enableBody = true;
-
-//  var container = game.add.sprite(x * tileSize, y * tileSize);
-//  game.physics.arcade.enable(container);
-//  container.scale.x = floatySpikeWidth * tileSize;
-//  container.scale.y = tileSize / 2;
-//  container.checkWorldBounds = true;
-//  container.outOfBoundsKill = true;
-//  container.body.velocity.setTo(200, 0);
-//  container.body.bounce.set(0.8);
-
-  for (var i = 0; i < floatySpikeWidth; i++) {
-    var side = center;
-    if (i == 0) {
-      side = left;
-    } else if (i == floatySpikeWidth-1) {
-      side = right;
-    }
-
-    var c = container.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
-    c.width = tileSize;
-    c.height = tileSize/2;
-    c.checkWorldBounds = true;
-    c.outOfBoundsKill = true;
-
-    game.physics.arcade.enable(c);
-    c.body.velocity.setTo(200, 0);
-    c.body.bounce.set(0.8);
-    container.addChild(c);
-
-    var s = container.create((x + i) * tileSize, (y-1) * tileSize, 'spikes');
-    s.width = tileSize;
-    s.height = tileSize;
-    s.checkWorldBounds = true;
-    s.outOfBoundsKill = true;
-
-    game.physics.arcade.enable(s);
-    s.body.velocity.setTo(200, 0);
-    s.body.bounce.set(0.8);
-    container.addChild(s);
-  }
+  var fs = floatySpikes.create((worldWidth/2) * tileSize, y * tileSize,
+      floatySpike);
+  fs.checkWorldBounds = true;
+  fs.outOfBoundsKill = true;
+  game.physics.arcade.enable(fs);
+  fs.body.velocity.setTo(200, 0);
+  fs.body.bounce.set(0.8);
 }
 
 function makeLayer(y) {
@@ -539,6 +500,29 @@ function create() {
       .endFill()
       .generateTexture();
 
+    // Floaty spike sprite
+    var left = PLATFORM_LEFT;
+    var center = PLATFORM_CENTER;
+    var right = PLATFORM_RIGHT;
+    var x = (worldWidth / 2);
+    floatySpike = game.add.bitmapData(tileSize * floatySpikeWidth,
+        tileSize * 2);
+    for (var i = 0; i < floatySpikeWidth; i++) {
+      var side = center;
+      if (i == 0) {
+        side = left;
+      } else if (i == floatySpikeWidth-1) {
+        side = right;
+      }
+      var c = game.add.sprite(0, 0, 'platformerIndustrial', side);
+      c.width = tileSize;
+      c.height = tileSize/2;
+      floatySpike.draw(c, i * tileSize, tileSize);
+      var s = game.add.sprite(0, 0, 'spikes');
+      s.width = tileSize;
+      s.height = tileSize;
+      floatySpike.draw(s, i * tileSize, 0);
+    }
 
     // Add sounds
     bumpSound = game.add.audio('bump');
@@ -582,6 +566,8 @@ function create() {
     platforms.enableBody = true;
     spikes = game.add.group();
     spikes.enableBody = true;
+    floatySpikes = game.add.group();
+    floatySpikes.enableBody = true;
     items = game.add.group();
     items.enableBody = true;
     collectedGears = game.add.group();
@@ -827,10 +813,12 @@ function update() {
   // Check for collisions.
   game.physics.arcade.collide(player, walls);
   game.physics.arcade.collide(items, walls);
+  game.physics.arcade.collide(floatySpikes, walls);
   game.physics.arcade.collide(platforms, walls);
   game.physics.arcade.collide(spikes, walls);
   if (!godMode) {
     game.physics.arcade.overlap(player, spikes, killPlayer);
+    game.physics.arcade.overlap(player, floatySpikes, killPlayer);
   }
   game.physics.arcade.overlap(player, items, collectItem);
   game.physics.arcade.overlap(player, leftFanWalls, function() {
@@ -882,6 +870,9 @@ function update() {
     }
   });
   spikes.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  floatySpikes.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
   });
   items.forEachAlive(function(c) {
