@@ -21,6 +21,8 @@ const screenHeight = 20;
 const worldWidth = 40;
 const worldHeight = 40;
 const tileSize = 32;
+const scoreTextX = 16;
+const scoreTextY = (screenHeight * tileSize) - 40;
 
 const platformProb = 0.1;
 const spikeProb = 0.7;
@@ -39,8 +41,10 @@ const tickRate = 100;
 const jetpackFuelRate = 1;
 const fuelbarWidth = 20;
 const fuelbarHeight = 400;
-const fuelbarX = (screenWidth * tileSize) - 100
+const fuelbarX = (screenWidth * tileSize) - 50; 
 const fuelbarY = (screenHeight * tileSize) - fuelbarHeight - 30;
+const fuelbarTextX = (screenWidth * tileSize) - 90; 
+const fuelbarTextY = (screenHeight * tileSize) - 30;
 const floatySpikeWidth = 3;
 
 const WALL = 29;
@@ -52,7 +56,7 @@ var playerDead = false;
 var curLayer = -1;
 var lastPopulatedLayer = 0;
 var lastCheckpointLastPopulatedLayer = 0;
-var debugString = 'MDW';
+var debugString = '';
 var fallRate = 0;
 var numGearsCollected = 0;
 var fallDistance = 0;
@@ -73,6 +77,7 @@ function preload() {
   game.load.spritesheet('platformerRequest', 'assets/platformer-request.png', 70, 70, -1, 0, 0);
   game.load.image('whitepuff','assets/smoke/whitePuff00.png');
   game.load.image('gascan','assets/gascan.png');
+  game.load.image('background','assets/spaceship_bg_2.png');
   game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-small.png', 256, 256, -1, 0, 1);
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
@@ -109,6 +114,7 @@ var glow;
 var killKey;
 var restartKey;
 var music;
+var background;
 
 function makeWalls(y) {
   var wall;
@@ -119,7 +125,8 @@ function makeWalls(y) {
     wall.body.immovable = true;
     wall.checkWorldBounds = true;
     wall.outOfBoundsKill = true;
-    wall.tint = 0x303030;
+    var shade = worldRnd.integerInRange(10, 50);
+    wall.tint = (shade << 16) | (shade << 8) | shade;
   }
   for (x = worldWidth - 10; x < worldWidth; x++) {
     wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformerRequest', 29);
@@ -128,25 +135,28 @@ function makeWalls(y) {
     wall.body.immovable = true;
     wall.checkWorldBounds = true;
     wall.outOfBoundsKill = true;
-    wall.tint = 0x303030;
+    var shade = worldRnd.integerInRange(10, 50);
+    wall.tint = (shade << 16) | (shade << 8) | shade;
   }
 
   // Liner
-  wall = walls.getFirstDead(true, (10 * tileSize) - 4, y * tileSize, 'platformerIndustrial', 'platformIndustrial_036.png');
+  wall = walls.getFirstDead(true, (10 * tileSize) - 4, y * tileSize,
+      'platformerIndustrial', 'platformIndustrial_065.png');
   wall.anchor.setTo(.5,.5);
   wall.angle = 90;
-  wall.width = tileSize;
-  wall.height = tileSize/2;
+  wall.width = tileSize * 2;
+  wall.height = tileSize;
   wall.body.immovable = true;
   wall.checkWorldBounds = true;
   wall.outOfBoundsKill = true;
 
   // Liner
-  wall = walls.getFirstDead(true, ((worldWidth - 10) * tileSize) + 5, y * tileSize, 'platformerIndustrial', 'platformIndustrial_036.png');
+  wall = walls.getFirstDead(true, ((worldWidth - 10) * tileSize) + 5,
+      y * tileSize, 'platformerIndustrial', 'platformIndustrial_065.png');
   wall.anchor.setTo(.5,.5);
   wall.angle = 90;
-  wall.width = tileSize;
-  wall.height = tileSize/2;
+  wall.width = tileSize * 2;
+  wall.height = tileSize;
   wall.body.immovable = true;
   wall.checkWorldBounds = true;
   wall.outOfBoundsKill = true;
@@ -156,12 +166,14 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
   var left = PLATFORM_LEFT;
   var center = PLATFORM_CENTER;
   var right = PLATFORM_RIGHT;
+  var offset = 0;
   if (onLeft) {
     left = PLATFORM_CENTER;
+    offset = 10;
   } else {
     right = PLATFORM_CENTER;
+    offset = -10;
   }
-
 
   for (var i = 0; i < width; i++) {
     var side = center;
@@ -170,7 +182,8 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
     } else if (i == width-1) {
       side = right;
     }
-    var c = platforms.create((x + i) * tileSize, y * tileSize, 'platformerIndustrial', side);
+    var c = platforms.create(((x + i) * tileSize) + offset, y * tileSize,
+        'platformerIndustrial', side);
     c.width = tileSize;
     c.height = tileSize/2;
     c.body.immovable = true;
@@ -179,7 +192,8 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
     c._layer = curLayer;
 
     if (hasSpikes) {
-      c = spikes.getFirstDead(true, (x + i) * tileSize, (y-1) * tileSize, 'spikes');
+      c = spikes.getFirstDead(true, ((x + i) * tileSize) + offset,
+          (y-1) * tileSize, 'spikes');
       c.width = tileSize;
       c.height = tileSize;
       c.body.immovable = true;
@@ -192,11 +206,12 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
   if (!hasSpikes && hasGear) {
     var leftpos = x * tileSize;
     var rightpos = (x + width) * tileSize;
-    var middle = leftpos + ((rightpos - leftpos)/2);
-    c = items.create(middle, (y-1) * tileSize, 'platformerIndustrial', 'platformIndustrial_067.png');
+    var middle = (leftpos + ((rightpos - leftpos)/2)) + offset;
+    c = items.create(middle, (y-1) * tileSize, 'platformerIndustrial',
+        'platformIndustrial_067.png');
     c.anchor.setTo(.5,.5);
-    c.width = tileSize;
-    c.height = tileSize;
+    c.width = tileSize * 1.5;
+    c.height = tileSize * 1.5;
     c.body.immovable = true;
     c.checkWorldBounds = true;
     c.outOfBoundsKill = true;
@@ -242,8 +257,9 @@ function makeFan(x, y, onLeft) {
 
   // Fan emitter
   var fe = game.add.emitter(onLeft ? 50 : -50, 0, 50);
-  fe.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
-  fe.forEach(function(particle) { particle.tint = 0x000040; });
+  fe.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false,
+      false);
+  fe.forEach(function(particle) { particle.tint = 0xf00040; });
   fe.gravity = 0;
   fe.setAlpha(1, 0, 2000);
   fe.setScale(0.4, 0, 0.4, 0, 2000);
@@ -307,7 +323,6 @@ function makeCheckpoint(y) {
   cw._llg = llg;
   cw._rl = rl;
   cw._rlg = rlg;
-  cw._passed = false;
   cw._layer = curLayer;
   cw._lastPopulatedLayer = lastPopulatedLayer;
 
@@ -485,7 +500,11 @@ function create() {
     game.physics.startSystem(Phaser.Physics.ARCADE);
 
     game.world.setBounds(0, 0, worldWidth * tileSize, worldHeight * tileSize);
-    game.stage.backgroundColor = '202020';
+
+    background = game.add.tileSprite(10 * tileSize, 0,
+        (screenWidth - 20) * tileSize, screenHeight * tileSize, 'background');
+    background.tint = 0x202020;
+    //game.stage.backgroundColor = '20ff20';
 
     // Glow effect for lights
     glow = new Phaser.Graphics(game, 0, 0)
@@ -584,9 +603,6 @@ function create() {
     buildWorld();
     drawFuelbar();
 
-    scoreText = game.add.text(16, 16, 'Checkpoints: 0',
-        { font: 'Bubbler One', fontSize: '32px', fill: '#ffffff' });
-
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
     killKey = game.input.keyboard.addKey(Phaser.Keyboard.K);
@@ -612,6 +628,18 @@ function create() {
     timer.loop(tickRate, tick);
     lastTick = new Date();
     timer.start();
+
+    logoText = game.add.text(12, 350, 'Infinitube',
+        { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
+    logoText.angle = -90;
+
+    fuelText = game.add.text(fuelbarTextX, fuelbarTextY, 'Fuel',
+        { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
+    fuelText.angle = -90;
+
+    scoreText = game.add.text(scoreTextX, scoreTextY,
+        'Checkpoints: 0', { font: 'Bubbler One', fontSize: '24px',
+          fill: '#ffffff' });
 }
 
 function tick() {
@@ -722,11 +750,11 @@ function killPlayer() {
 }
 
 function hitCheckpoint(p, cw) {
-  if (cw._passed) {
+  if (lastCheckpointTraversed >= cw._layer) {
     return;
   }
-  cw._passed = true;
   lastCheckpointTraversed = cw._layer;
+
   // This is the value of lastPopulatedLayer as seen at this checkpoint.
   // We save it here since if we die before the next checkpoint,
   // we need to restore this value so that the world will be rebuilt
@@ -738,8 +766,9 @@ function hitCheckpoint(p, cw) {
   if (scoreText != null) {
     scoreText.destroy();
   }
-  scoreText = game.add.text(16, 16, 'Checkpoints: ' + checkpointsTraversed,
-        { font: 'Bubbler One', fontSize: '32px', fill: '#ffffff' });
+  scoreText = game.add.text(scoreTextX, scoreTextY,
+      'Checkpoints: ' + checkpointsTraversed,
+      { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
 
   checkpointSound.play('', 0, 1, false, false);
 
@@ -799,7 +828,6 @@ function useJetpack(goleft) {
     return;
   }
   jetpackFuel = Math.max(0, jetpackFuel - jetpackFuelRate);
-  debugString = 'Jetpack ' + jetpackFuel;
   drawFuelbar();
 
   var mult = goleft ? -1 : 1;
@@ -862,7 +890,8 @@ function update() {
     }
   }
 
-  // Slide platforms and fans up.
+  // Slide everything up.
+  background.tilePosition.y -= fallRate / 1000;
   markers.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
   });
@@ -902,10 +931,5 @@ function update() {
 }
 
 function render() {
-  //game.debug.cameraInfo(game.camera, 32, 32);
-//  game.debug.spriteCoords(player, 32, 500);
-//  game.debug.spriteInfo(jetpack, 32, 500);
-//  game.debug.spriteCoords(jetpack, 32, 600);
-//  debugString = 'cp seed ' + checkpointSeed;
   game.debug.text(debugString, 32, 150);
 }
