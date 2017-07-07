@@ -645,6 +645,10 @@ function create() {
 function tick() {
   var now = new Date();
   var elapsed = (now - lastTick) / 1000.0;
+  if (jetpackFuel < 100) {
+    jetpackFuel += 1;
+    drawFuelbar();
+  }
   fallDistance += fallRate * elapsed;
   lastTick = now;
 }
@@ -833,7 +837,7 @@ function useJetpack(goleft) {
   var mult = goleft ? -1 : 1;
   player.body.velocity.x = 150 * mult;
   player.body.angularVelocity = (spinRate / 2) * mult;
-  player.body.angularDrag = spinRate * 4;
+  player.body.angularDrag = spinRate * 0.2;
   player.scale.x = mult;
     
   jetpack.emitX = player.x + (goleft ? 30 : -30);
@@ -858,13 +862,13 @@ function update() {
   game.physics.arcade.overlap(player, leftFanWalls, function() {
     player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
     player.body.angularVelocity = spinRate;
-    player.body.angularDrag = spinRate * 4;
+    player.body.angularDrag = spinRate * 0.2;
     player.scale.x = 1;
   });
   game.physics.arcade.overlap(player, rightFanWalls, function() {
     player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
     player.body.angularVelocity = -1 * spinRate;
-    player.body.angularDrag = spinRate * 4;
+    player.body.angularDrag = spinRate * 0.2;
     player.scale.x = -1;
   });
   game.physics.arcade.overlap(player, lights, hitCheckpoint);
