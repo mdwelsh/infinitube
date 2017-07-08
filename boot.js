@@ -14,8 +14,11 @@ BootState.prototype = {
 
   create: function() {
     this.makeLine('Infinitube', 150, '200px', 'Russo One');
-    this.makeLine('a game by', 300, '50px', 'Bubbler One');
-    this.makeLine('Sidney Welsh', 400, '80px', 'Bubbler One');
+    this.makeLine('a game by', 300, '30px', 'Bubbler One');
+    this.makeLine('Sidney Welsh', 350, '50px', 'Bubbler One');
+    this.makeLine('Use arrows to move left or right', 450, '20px', 'Bubbler One');
+    this.makeLine('Collect gears to increase power', 480, '20px', 'Bubbler One');
+    this.makeLine('Don\'t die', 510, '20px', 'Bubbler One');
     this.makeLine('press any key to begin', 600, '20px');
 
     this.game.input.keyboard.onDownCallback = function() {

@@ -3,7 +3,6 @@
 // Parachutes
 // Worms
 // Lasers
-// Pause
 
 var PlayState = function () {};
 
@@ -115,6 +114,8 @@ var killKey;
 var restartKey;
 var music;
 var background;
+var pauseText;
+var pauseScreen;
 
 function makeWalls(y) {
   var wall;
@@ -504,7 +505,6 @@ function create() {
     background = game.add.tileSprite(10 * tileSize, 0,
         (screenWidth - 20) * tileSize, screenHeight * tileSize, 'background');
     background.tint = 0x202020;
-    //game.stage.backgroundColor = '20ff20';
 
     // Glow effect for lights
     glow = new Phaser.Graphics(game, 0, 0)
@@ -609,6 +609,8 @@ function create() {
     killKey.onDown.add(killPlayer, this);
     restartKey = game.input.keyboard.addKey(Phaser.Keyboard.G);
     restartKey.onDown.add(restartGame, this);
+    pauseKey = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+    pauseKey.onDown.add(pauseGame, this);
 
     // Music.
     music = new Phaser.Sound(game, 'music', 1, true);
@@ -715,6 +717,24 @@ function collectFuel(fuel) {
   t.onComplete.add(function() {
     col.kill();
   });
+}
+
+function pauseGame() {
+  console.log('pauseGame called');
+  if (!game.paused) {
+    pauseScreen = game.add.tileSprite(0, 0, screenWidth * tileSize,
+        screenHeight * tileSize, 'platformerRequest', 29);
+    pauseScreen.tint = 0x202080;
+    pauseScreen.alpha = 0.5;
+    pauseText = game.add.text(game.world.centerX, game.world.centerY/2, 'paused',
+          { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
+    pauseText.anchor.setTo(0.5);
+    game.paused = true;
+  } else {
+    pauseScreen.kill();
+    pauseText.kill();
+    game.paused = false;
+  }
 }
 
 function killPlayer() {
