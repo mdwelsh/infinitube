@@ -21,11 +21,14 @@ BootState.prototype = {
     this.makeLine('Don\'t die', 510, '20px', 'Bubbler One');
     this.makeLine('press any key to begin', 600, '20px');
 
+    game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
+
     this.game.input.keyboard.onDownCallback = function() {
       this.game.input.keyboard.onDownCallback = function() {};
       game.time.events.add(Phaser.Timer.SECOND, function() {
         game.state.start('play');
       }, this);
+      game.scale.startFullScreen(false);
     };
   },
 
