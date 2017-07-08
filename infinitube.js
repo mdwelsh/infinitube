@@ -13,7 +13,6 @@ PlayState.prototype = {
   render: render,
 };
 
-const godMode = true;
 
 const screenWidth = 40;
 const screenHeight = 20;
@@ -23,11 +22,12 @@ const tileSize = 32;
 const scoreTextX = 16;
 const scoreTextY = (screenHeight * tileSize) - 40;
 
-const platformProb = 1.0;
-const spikeProb = 0.0;
+const platformProb = 0.2;
+const spikeProb = 0.2;
 const fanProb = 0.0;
 const fuelProb = 0.0;
-const floatySpikeProb = 0.00;
+const floatySpikeProb = 0.2;
+const wormProb = 0.2;
 
 const minObstacleGap = 4;
 const maxGears = 10;
@@ -51,6 +51,7 @@ const PLATFORM_LEFT = 'platformIndustrial_035.png';
 const PLATFORM_CENTER = 'platformIndustrial_036.png';
 const PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
+var godMode = true;
 var playerDead = false;
 var curLayer = -1;
 var lastPopulatedLayer = 0;
@@ -68,16 +69,23 @@ var jetpackFuel = 100;
 
 
 function preload() {
-  game.load.spritesheet('player', 'assets/player/p1_spritesheet.png', 72, 97, -1, 0, 1);
+  game.load.spritesheet('player', 'assets/player/p1_spritesheet.png',
+      72, 97, -1, 0, 1);
   game.load.image('spikes','assets/spikesBottomAlt2.png');
-  game.load.atlasXML('platformer', 'assets/platformer-tiles.png', 'assets/platformer-tiles.xml');
-  game.load.atlasXML('platformerIndustrial', 'assets/platformIndustrial_sheet.png',
+  game.load.atlasXML('platformer', 'assets/platformer-tiles.png',
+      'assets/platformer-tiles.xml');
+  game.load.atlasXML('platformerIndustrial',
+      'assets/platformIndustrial_sheet.png',
       'assets/platformIndustrial_sheet.xml');
-  game.load.spritesheet('platformerRequest', 'assets/platformer-request.png', 70, 70, -1, 0, 0);
+  game.load.spritesheet('platformerRequest', 'assets/platformer-request.png',
+      70, 70, -1, 0, 0);
   game.load.image('whitepuff','assets/smoke/whitePuff00.png');
   game.load.image('gascan','assets/gascan.png');
   game.load.image('background','assets/spaceship_bg_2.png');
-  game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-small.png', 256, 256, -1, 0, 1);
+  game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-small.png',
+      256, 256, -1, 0, 1);
+  game.load.atlasXML('enemies', 'assets/player/enemies.png',
+      'assets/player/enemies.xml');
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
@@ -94,6 +102,7 @@ var markers;
 var platforms;
 var spikes;
 var floatySpikes;
+var worms;
 var items;
 var collectedGears;
 var fans;
@@ -361,6 +370,26 @@ function makeFloatySpike(y) {
   fs.body.bounce.set(0.8);
 }
 
+function makeWorm(y, onleft) {
+  var xpos;
+  if (onleft) {
+    xpos = 15 * tileSize;
+  } else {
+    xpos = (worldWidth - 15) * tileSize;
+  }
+
+  var worm = worms.create(xpos, y * tileSize, 'enemies', 'snakeSlime.png');
+  var wiggle = worm.animations.add('wiggle', ['snakeSlime.png', 'snakeSlime_ani.png'], 5,
+      true, false);
+  worm.angle = onleft ? 90 : -90;
+  worm.checkWorldBounds = true;
+  worm.outOfBoundsKill = true;
+  game.physics.arcade.enable(worm);
+  wiggle.play();
+  game.add.tween(worm.scale).to({ y: 3.0 }, 2000, Phaser.Easing.Linear.None, true, 0, -1, true);
+  game.add.tween(worm).to({ x: (worldWidth - 24) * tileSize }, 2000, Phaser.Easing.Linear.None, true, 0, -1, true);
+}
+
 function makeLayer(y) {
   // Create a new layer.
   curLayer++;
@@ -415,6 +444,12 @@ function makeLayer(y) {
 
   if (worldRnd.frac() < floatySpikeProb) {
     makeFloatySpike(y);
+    lastPopulatedLayer = curLayer;
+    return;
+  }
+
+  if (worldRnd.frac() < wormProb) {
+    makeWorm(y, onleft);
     lastPopulatedLayer = curLayer;
     return;
   }
@@ -587,6 +622,8 @@ function create() {
     spikes.enableBody = true;
     floatySpikes = game.add.group();
     floatySpikes.enableBody = true;
+    worms = game.add.group();
+    worms.enableBody = true;
     items = game.add.group();
     items.enableBody = true;
     collectedGears = game.add.group();
@@ -642,6 +679,13 @@ function create() {
     scoreText = game.add.text(scoreTextX, scoreTextY,
         'Checkpoints: 0', { font: 'Bubbler One', fontSize: '24px',
           fill: '#ffffff' });
+
+    player.tint = 0xff0000;
+    godMode = true;
+    game.time.events.add(5 * Phaser.Timer.SECOND, function() {
+      player.tint = 0xffffff;
+      godMode = false;
+    }, this);
 }
 
 function tick() {
@@ -877,6 +921,7 @@ function update() {
   if (!godMode) {
     game.physics.arcade.overlap(player, spikes, killPlayer);
     game.physics.arcade.overlap(player, floatySpikes, killPlayer);
+    game.physics.arcade.overlap(player, worms, killPlayer);
   }
   game.physics.arcade.overlap(player, items, collectItem);
   game.physics.arcade.overlap(player, leftFanWalls, function() {
@@ -932,6 +977,9 @@ function update() {
     c.body.velocity.y = -1 * fallRate;
   });
   floatySpikes.forEachAlive(function(c) {
+    c.body.velocity.y = -1 * fallRate;
+  });
+  worms.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
   });
   items.forEachAlive(function(c) {
