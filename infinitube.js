@@ -24,11 +24,11 @@ const tileSize = 32;
 const scoreTextX = 16;
 const scoreTextY = (screenHeight * tileSize) - 40;
 
-const platformProb = 0.1;
-const spikeProb = 0.7;
-const fanProb = 0.1;
-const fuelProb = 0.1;
-const floatySpikeProb = 0.05;
+const platformProb = 1.0;
+const spikeProb = 0.0;
+const fanProb = 0.0;
+const fuelProb = 0.0;
+const floatySpikeProb = 0.00;
 
 const minObstacleGap = 4;
 const maxGears = 10;
@@ -679,9 +679,9 @@ function collectGear(gear) {
   numGearsCollected++;
 
   // Next, create a new one that we're going to collect.
-  var endx = (worldWidth - 2) * tileSize;
+  var endx = (worldWidth - 4) * tileSize;
   var endy = (numGearsCollected * tileSize) + 20;
-  col = collectedGears.getFirstDead(true, startx, starty,
+  var col = collectedGears.create(startx, starty,
       'platformerIndustrial', 'platformIndustrial_067.png');
   col.anchor.setTo(.5,.5);
   col.width = tileSize;
@@ -704,7 +704,7 @@ function collectFuel(fuel) {
   // Zap a fuel to the bar.
   var endx = fuelbarX;
   var endy = fuelbarY;
-  col = collectedGears.getFirstDead(true, startx, starty, 'gascan');
+  var col = collectedGears.create(startx, starty, 'gascan');
   col.anchor.setTo(.5,.5);
   col.width = tileSize * 2;
   col.height = tileSize * 2;
