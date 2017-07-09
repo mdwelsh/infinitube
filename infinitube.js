@@ -19,8 +19,8 @@ const screenHeight = 20;
 const worldWidth = 40;
 const worldHeight = 40;
 const tileSize = 32;
-const scoreTextX = 16;
-const scoreTextY = (screenHeight * tileSize) - 40;
+const scoreTextX = (worldWidth * tileSize) - 40;
+const scoreTextY = 40;
 
 const platformProb = 0.2;
 const spikeProb = 0.2;
@@ -71,6 +71,7 @@ var jetpackFuel = 100;
 function preload() {
   game.load.spritesheet('player', 'assets/player/p1_spritesheet.png',
       72, 97, -1, 0, 1);
+  game.load.image('arrow','assets/arrow.png');
   game.load.image('spikes','assets/spikesBottomAlt2.png');
   game.load.atlasXML('platformer', 'assets/platformer-tiles.png',
       'assets/platformer-tiles.xml');
@@ -107,7 +108,8 @@ var items;
 var collectedGears;
 var fans;
 var walls;
-var ui;
+var fuelbar;
+var tapControls;
 var leftFanWalls;
 var rightFanWalls;
 var lights;
@@ -125,6 +127,9 @@ var music;
 var background;
 var pauseText;
 var pauseScreen;
+var leftArrow;
+var rightArrow;
+var pauseButton;
 
 function makeWalls(y) {
   var wall;
@@ -529,7 +534,7 @@ function create() {
     if (checkpointSeed != null) {
       worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
     } else {
-      worldRnd = new Phaser.RandomDataGenerator([123]);
+      worldRnd = new Phaser.RandomDataGenerator([57575]);
     }
 
     // We're going to be using physics, so enable the Arcade Physics system
@@ -600,17 +605,13 @@ function create() {
     jetpack.gravity = 0;
     jetpack.setAlpha(1, 0, 1000);
     jetpack.setScale(0.4, 0, 0.4, 0, 1000);
-    //jetpack.lifespan = 500;
-    //jetpack.maxParticleSpeed = new Phaser.Point(-100,50);
-    //jetpack.minParticleSpeed = new Phaser.Point(-200,-50);
-    // Force jetpack to update with player.
-    //player.addChild(jetpack);
-    //player.update = function() { jetpack.update(); }
     jetpack.start(false, 1000, 20);
     jetpack.on = false;
 
-    ui = game.add.group();
-    ui.enableBody = false;
+    fuelbar = game.add.group();
+    fuelbar.enableBody = false;
+    tapControls = game.add.group();
+    tapControls.enableBody = false;
 
     walls = game.add.group();
     walls.enableBody = true;
@@ -649,6 +650,41 @@ function create() {
     pauseKey = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
     pauseKey.onDown.add(pauseGame, this);
 
+    // Add touch controls.
+    if (!game.device.desktop) {
+
+      var arrow = new Phaser.Graphics(game, 0, 0)
+        .lineStyle(10, 0xffffff, 1.0)
+        .drawCircle(0, 0, 100)
+        .moveTo(10, -20)
+        .lineTo(-15, 0)
+        .lineTo(10, 20)
+        .generateTexture();
+
+      leftArrow = tapControls.create(5 * tileSize,
+          (screenHeight - 4) * tileSize, arrow);
+      leftArrow.inputEnabled = true;
+
+      rightArrow = tapControls.create((worldWidth - 5) * tileSize,
+          (screenHeight - 4) * tileSize, arrow);
+      rightArrow.scale.x = -1;
+      rightArrow.inputEnabled = true;
+
+      var pause = new Phaser.Graphics(game, 0, 0)
+        .lineStyle(10, 0xffffff, 1.0)
+        .drawCircle(0, 0, 100)
+        .moveTo(10, -20)
+        .lineTo(10, 20)
+        .moveTo(-10, -20)
+        .lineTo(-10, 20)
+        .generateTexture();
+      pauseButton = tapControls.create(1 * tileSize,
+          (screenHeight - 4) * tileSize, pause);
+      pauseButton.inputEnabled = true;
+      pauseButton.events.onInputDown.add(pauseGame);
+
+    }
+
     // Music.
     music = new Phaser.Sound(game, 'music', 1, true);
     game.time.events.add(Phaser.Timer.SECOND, function() {
@@ -659,7 +695,8 @@ function create() {
     game.world.bringToTop(walls);
     game.world.bringToTop(collectedGears);
     game.world.bringToTop(platforms);
-    game.world.bringToTop(ui);
+    game.world.bringToTop(fuelbar);
+    game.world.bringToTop(tapControls);
 
     game.camera.follow(player);
 
@@ -764,7 +801,6 @@ function collectFuel(fuel) {
 }
 
 function pauseGame() {
-  console.log('pauseGame called');
   if (!game.paused) {
     pauseScreen = game.add.tileSprite(0, 0, screenWidth * tileSize,
         screenHeight * tileSize, 'platformerRequest', 29);
@@ -881,14 +917,13 @@ function drawFuelbar() {
   grd.addColorStop(1, "#FF0000");
   ctx.fillStyle = grd;
   var y = fuelbarHeight - (fuelbarHeight * (jetpackFuel / 100));
-  //ctx.roundRect(0, y, fuelbarWidth, fuelbarHeight, 20).fill();
   ctx.roundRect(0, y, fuelbarWidth, fuelbarHeight - y, 10).fill();
 
   // Replace group with the new sprite.
-  ui.forEach(function(c) {
+  fuelbar.forEach(function(c) {
     c.destroy();
   });
-  ui.getFirstDead(true, fuelbarX, fuelbarY, fi);
+  fuelbar.getFirstDead(true, fuelbarX, fuelbarY, fi);
 }
 
 function useJetpack(goleft) {
@@ -940,9 +975,13 @@ function update() {
 
   // Handle controls.
   if (!playerDead) {
-    if (cursors.left.isDown) {
+    if (cursors.left.isDown || leftArrow.input.pointerOver()) {
+      console.log('LEFT');
+      leftArrow.alpha = 0.5;
       useJetpack(true);
-    } else if (cursors.right.isDown) {
+    } else if (cursors.right.isDown || rightArrow.input.pointerOver()) {
+      console.log('RIGHT');
+      rightArrow.alpha = 0.5;
       useJetpack(false);
     } else if (cursors.down.isDown) {
       fallRate += 100;
@@ -954,6 +993,9 @@ function update() {
       drawFuelbar();
     } else {
       // Stand still
+      console.log('STOP');
+      leftArrow.alpha = 1.0;
+      rightArrow.alpha = 1.0;
       player.frame = 4;
       jetpack.on = false;
     }
