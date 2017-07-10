@@ -651,39 +651,35 @@ function create() {
     pauseKey.onDown.add(pauseGame, this);
 
     // Add touch controls.
-    if (!game.device.desktop) {
+    var arrow = new Phaser.Graphics(game, 0, 0)
+      .lineStyle(10, 0xffffff, 1.0)
+      .drawCircle(0, 0, 100)
+      .moveTo(10, -20)
+      .lineTo(-15, 0)
+      .lineTo(10, 20)
+      .generateTexture();
 
-      var arrow = new Phaser.Graphics(game, 0, 0)
-        .lineStyle(10, 0xffffff, 1.0)
-        .drawCircle(0, 0, 100)
-        .moveTo(10, -20)
-        .lineTo(-15, 0)
-        .lineTo(10, 20)
-        .generateTexture();
+    leftArrow = tapControls.create(5 * tileSize,
+        (screenHeight - 4) * tileSize, arrow);
+    leftArrow.inputEnabled = true;
 
-      leftArrow = tapControls.create(5 * tileSize,
-          (screenHeight - 4) * tileSize, arrow);
-      leftArrow.inputEnabled = true;
+    rightArrow = tapControls.create((worldWidth - 5) * tileSize,
+        (screenHeight - 4) * tileSize, arrow);
+    rightArrow.scale.x = -1;
+    rightArrow.inputEnabled = true;
 
-      rightArrow = tapControls.create((worldWidth - 5) * tileSize,
-          (screenHeight - 4) * tileSize, arrow);
-      rightArrow.scale.x = -1;
-      rightArrow.inputEnabled = true;
-
-      var pause = new Phaser.Graphics(game, 0, 0)
-        .lineStyle(10, 0xffffff, 1.0)
-        .drawCircle(0, 0, 100)
-        .moveTo(10, -20)
-        .lineTo(10, 20)
-        .moveTo(-10, -20)
-        .lineTo(-10, 20)
-        .generateTexture();
-      pauseButton = tapControls.create(1 * tileSize,
-          (screenHeight - 4) * tileSize, pause);
-      pauseButton.inputEnabled = true;
-      pauseButton.events.onInputDown.add(pauseGame);
-
-    }
+    var pause = new Phaser.Graphics(game, 0, 0)
+      .lineStyle(10, 0xffffff, 1.0)
+      .drawCircle(0, 0, 100)
+      .moveTo(10, -20)
+      .lineTo(10, 20)
+      .moveTo(-10, -20)
+      .lineTo(-10, 20)
+      .generateTexture();
+    pauseButton = tapControls.create(1 * tileSize,
+        (screenHeight - 4) * tileSize, pause);
+    pauseButton.inputEnabled = true;
+    pauseButton.events.onInputDown.add(pauseGame);
 
     // Music.
     music = new Phaser.Sound(game, 'music', 1, true);
@@ -975,11 +971,13 @@ function update() {
 
   // Handle controls.
   if (!playerDead) {
-    if (cursors.left.isDown || leftArrow.input.pointerOver()) {
+    if (cursors.left.isDown ||
+        leftArrow.input.checkPointerDown(game.input.activePointer, true)) {
       console.log('LEFT');
       leftArrow.alpha = 0.5;
       useJetpack(true);
-    } else if (cursors.right.isDown || rightArrow.input.pointerOver()) {
+    } else if (cursors.right.isDown ||
+        rightArrow.input.checkPointerDown(game.input.activePointer, true)) {
       console.log('RIGHT');
       rightArrow.alpha = 0.5;
       useJetpack(false);
