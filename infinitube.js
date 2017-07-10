@@ -1,7 +1,6 @@
 // TODO
 //
 // Parachutes
-// Worms
 // Lasers
 
 var PlayState = function () {};
@@ -14,23 +13,24 @@ PlayState.prototype = {
 };
 
 
+const godMode = false;
 const screenWidth = 40;
 const screenHeight = 20;
 const worldWidth = 40;
 const worldHeight = 40;
 const tileSize = 32;
-const scoreTextX = (worldWidth * tileSize) - 40;
-const scoreTextY = 40;
+const scoreTextX = (worldWidth - 8) * tileSize;
+const scoreTextY = 20;
 
-const platformProb = 0.2;
-const spikeProb = 0.2;
-const fanProb = 0.0;
-const fuelProb = 0.0;
-const floatySpikeProb = 0.2;
-const wormProb = 0.2;
+const platformProb = 0.01;
+const spikeProb = 0.5;
+const fanProb = 0.03;
+const fuelProb = 0.02;
+const floatySpikeProb = 0.01;
+const wormProb = 0.01;
 
 const minObstacleGap = 4;
-const maxGears = 10;
+const maxGears = 12;
 const baseFanVelocity = 300;
 const gearBenefit = 20;
 const fanSpin = 1000;
@@ -38,20 +38,30 @@ const spinRate = 800;
 const checkpointGap = 50;
 const tickRate = 100;
 const jetpackFuelRate = 1;
+const jetpackReplenishRate = 1;
+const jetpackRechargeTime = 1000;
 const fuelbarWidth = 20;
 const fuelbarHeight = 400;
 const fuelbarX = (screenWidth * tileSize) - 50; 
 const fuelbarY = (screenHeight * tileSize) - fuelbarHeight - 30;
 const fuelbarTextX = (screenWidth * tileSize) - 90; 
 const fuelbarTextY = (screenHeight * tileSize) - 30;
+const collectedGearsHeight = 400;
+const collectedGearsX = (screenWidth * tileSize) - 120; 
+const collectedGearsY = (screenHeight * tileSize) - 30;
+const collectedGearsTextX = (screenWidth * tileSize) - 150; 
+const collectedGearsTextY = (screenHeight * tileSize) - 30;
 const floatySpikeWidth = 3;
+const initialFallRate = 300;
+const fallRateIncrease = 50;
+const maxFallRate = 1000;
 
 const WALL = 29;
 const PLATFORM_LEFT = 'platformIndustrial_035.png';
 const PLATFORM_CENTER = 'platformIndustrial_036.png';
 const PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
-var godMode = true;
+var invincible = true;
 var playerDead = false;
 var curLayer = -1;
 var lastPopulatedLayer = 0;
@@ -66,6 +76,7 @@ var checkpointsTraversed = 0;
 var checkpointSeed = null;
 var lastTick = 0;
 var jetpackFuel = 100;
+var lastJetpackUse = 0;
 
 
 function preload() {
@@ -134,7 +145,8 @@ var pauseButton;
 function makeWalls(y) {
   var wall;
   for (x = 0; x < 10; x++) {
-    wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformerRequest', 29);
+    wall = walls.getFirstDead(true, x * tileSize, y * tileSize,
+        'platformerRequest', 29);
     wall.width = tileSize;
     wall.height = tileSize;
     wall.body.immovable = true;
@@ -144,7 +156,8 @@ function makeWalls(y) {
     wall.tint = (shade << 16) | (shade << 8) | shade;
   }
   for (x = worldWidth - 10; x < worldWidth; x++) {
-    wall = walls.getFirstDead(true, x * tileSize, y * tileSize, 'platformerRequest', 29);
+    wall = walls.getFirstDead(true, x * tileSize, y * tileSize,
+        'platformerRequest', 29);
     wall.width = tileSize;
     wall.height = tileSize;
     wall.body.immovable = true;
@@ -245,7 +258,8 @@ function makeFan(x, y, onLeft) {
   p.outOfBoundsKill = true;
   p._layer = curLayer;
 
-  var c = game.add.sprite(0, 0, 'platformerIndustrial', 'platformIndustrial_067.png');
+  var c = game.add.sprite(0, 0, 'platformerIndustrial',
+      'platformIndustrial_067.png');
   if (c.fresh) {
     var r = new Phaser.Rectangle(1, 1, 68, 68);
     c.crop(r);
@@ -350,8 +364,7 @@ function makeCheckpoint(y) {
 function makeFuel(y) {
   var c = items.create((screenWidth / 2) * tileSize, y * tileSize, 'gascan');
   c.anchor.setTo(.5,.5);
-  c.tint = 0xf04040;
-  c.width = tileSize * 2;
+  c.width = tileSize * 1.5;
   c.height = tileSize * 2;
   //c.body.immovable = true;
   c.checkWorldBounds = true;
@@ -384,15 +397,23 @@ function makeWorm(y, onleft) {
   }
 
   var worm = worms.create(xpos, y * tileSize, 'enemies', 'snakeSlime.png');
-  var wiggle = worm.animations.add('wiggle', ['snakeSlime.png', 'snakeSlime_ani.png'], 5,
-      true, false);
+  var wiggle = worm.animations.add('wiggle', ['snakeSlime.png',
+      'snakeSlime_ani.png'], 5, true, false);
   worm.angle = onleft ? 90 : -90;
   worm.checkWorldBounds = true;
   worm.outOfBoundsKill = true;
   game.physics.arcade.enable(worm);
   wiggle.play();
-  game.add.tween(worm.scale).to({ y: 3.0 }, 2000, Phaser.Easing.Linear.None, true, 0, -1, true);
-  game.add.tween(worm).to({ x: (worldWidth - 24) * tileSize }, 2000, Phaser.Easing.Linear.None, true, 0, -1, true);
+  // Make the worm stretch in and out
+  game.add.tween(worm.scale).to({ y: 3.0 }, 2000, Phaser.Easing.Linear.None,
+      true, 0, -1, true);
+  if (onleft) {
+    game.add.tween(worm).to({ x: 24 * tileSize }, 2000,
+        Phaser.Easing.Linear.None, true, 0, -1, true);
+  } else {
+    game.add.tween(worm).to({ x: (worldWidth - 24) * tileSize }, 2000,
+        Phaser.Easing.Linear.None, true, 0, -1, true);
+  }
 }
 
 function makeLayer(y) {
@@ -534,7 +555,8 @@ function create() {
     if (checkpointSeed != null) {
       worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
     } else {
-      worldRnd = new Phaser.RandomDataGenerator([57575]);
+      //worldRnd = new Phaser.RandomDataGenerator([57575]);
+      worldRnd = new Phaser.RandomDataGenerator();
     }
 
     // We're going to be using physics, so enable the Arcade Physics system
@@ -593,12 +615,6 @@ function create() {
     checkpointSound = game.add.audio('checkpoint');
     checkpointSound.allowMultiple = false;
 
-    // The player and its settings
-    player = game.add.sprite((worldWidth / 2) * tileSize, 150, 'player');
-    //player.animations.add('walk', [0, 1, 2, 3, 4, 5], 10, true);
-    player.anchor.setTo(.5,.5);
-    game.physics.arcade.enableBody(player);
-    player.body.bounce.y = 0;
 
     jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150);
     jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
@@ -694,7 +710,6 @@ function create() {
     game.world.bringToTop(fuelbar);
     game.world.bringToTop(tapControls);
 
-    game.camera.follow(player);
 
     timer = game.time.create(false);
     timer.loop(tickRate, tick);
@@ -705,27 +720,47 @@ function create() {
         { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
     logoText.angle = -90;
 
-    fuelText = game.add.text(fuelbarTextX, fuelbarTextY, 'Fuel',
+    var fuelText = game.add.text(fuelbarTextX, fuelbarTextY, 'Fuel',
         { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
     fuelText.angle = -90;
+
+    var collectedGearsText = game.add.text(collectedGearsTextX,
+        collectedGearsTextY, 'Gears',
+        { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
+    collectedGearsText.angle = -90;
 
     scoreText = game.add.text(scoreTextX, scoreTextY,
         'Checkpoints: 0', { font: 'Bubbler One', fontSize: '24px',
           fill: '#ffffff' });
 
-    player.tint = 0xff0000;
-    godMode = true;
-    game.time.events.add(5 * Phaser.Timer.SECOND, function() {
-      player.tint = 0xffffff;
-      godMode = false;
-    }, this);
+    // Create player.
+    player = game.add.sprite((worldWidth / 2) * tileSize, -100, 'player');
+    player.anchor.setTo(.5,.5);
+    game.physics.arcade.enableBody(player);
+    player.body.bounce.y = 0;
+
+    invincible = true;
+    var warpInPlayer = game.add.tween(player).to({ y: 150, angle: 720 }, 1000,
+        Phaser.Easing.Linear.None, false, 0, 0, false);
+    warpInPlayer.onComplete.add(function() {
+      fallRate = initialFallRate;
+    });
+    var blinkPlayer = game.add.tween(player).to({ alpha: 0.4 }, 200,
+        Phaser.Easing.Linear.None, false, 0, 10, true);
+    blinkPlayer.onComplete.add(function() {
+      player.alpha = 1.0;
+      invincible = false;
+    });
+
+    warpInPlayer.chain(blinkPlayer);
+    warpInPlayer.start();
 }
 
 function tick() {
   var now = new Date();
   var elapsed = (now - lastTick) / 1000.0;
-  if (jetpackFuel < 100) {
-    jetpackFuel += 1;
+  if ((jetpackFuel < 100) && (now - lastJetpackUse) >= jetpackRechargeTime) {
+    jetpackFuel = Math.min(jetpackFuel + jetpackReplenishRate, 100);
     drawFuelbar();
   }
   fallDistance += fallRate * elapsed;
@@ -744,6 +779,10 @@ function collectItem(player, item) {
 }
 
 function collectGear(gear) {
+  if (numGearsCollected >= maxGears) {
+    return;
+  }
+
   gearSound.play('', 0, 1, false, false);
 
   // First, let's destroy the gear we just collected.
@@ -751,15 +790,11 @@ function collectGear(gear) {
   var starty = gear.y;
   gear.kill();
 
-  if (numGearsCollected >= maxGears) {
-    return;
-  }
-
   numGearsCollected++;
 
   // Next, create a new one that we're going to collect.
-  var endx = (worldWidth - 4) * tileSize;
-  var endy = (numGearsCollected * tileSize) + 20;
+  var endx = collectedGearsX;
+  var endy = collectedGearsY - (numGearsCollected * tileSize);
   var col = collectedGears.create(startx, starty,
       'platformerIndustrial', 'platformIndustrial_067.png');
   col.anchor.setTo(.5,.5);
@@ -785,12 +820,12 @@ function collectFuel(fuel) {
   var endy = fuelbarY;
   var col = collectedGears.create(startx, starty, 'gascan');
   col.anchor.setTo(.5,.5);
-  col.width = tileSize * 2;
-  col.height = tileSize * 2;
+  col.width = tileSize * 1.0;
+  col.height = tileSize * 1.5;
   col.checkWorldBounds = true;
   col.outOfBoundsKill = true;
-  col.tint = 0xf08080;
-  var t = game.add.tween(col.body).to({ x: endx, y: endy, }, 250, Phaser.Easing.Linear.None, true);
+  var t = game.add.tween(col.body).to({ x: endx, y: endy, }, 250,
+      Phaser.Easing.Linear.None, true);
   t.onComplete.add(function() {
     col.kill();
   });
@@ -802,8 +837,8 @@ function pauseGame() {
         screenHeight * tileSize, 'platformerRequest', 29);
     pauseScreen.tint = 0x202080;
     pauseScreen.alpha = 0.5;
-    pauseText = game.add.text(game.world.centerX, game.world.centerY/2, 'paused',
-          { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
+    pauseText = game.add.text(game.world.centerX, game.world.centerY/2,
+        'paused', { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
     pauseText.anchor.setTo(0.5);
     game.paused = true;
   } else {
@@ -854,6 +889,9 @@ function hitCheckpoint(p, cw) {
     return;
   }
   lastCheckpointTraversed = cw._layer;
+  if (fallRate < maxFallRate) {
+    fallRate = Math.min(fallRate + fallRateIncrease, maxFallRate);
+  }
 
   // This is the value of lastPopulatedLayer as seen at this checkpoint.
   // We save it here since if we die before the next checkpoint,
@@ -923,10 +961,12 @@ function drawFuelbar() {
 }
 
 function useJetpack(goleft) {
-  if (jetpackFuel == 0) {
+  if (jetpackFuel < jetpackFuelRate) {
+    jetpack.on = false;
     return;
   }
   jetpackFuel = Math.max(0, jetpackFuel - jetpackFuelRate);
+  lastJetpackUse = new Date();
   drawFuelbar();
 
   var mult = goleft ? -1 : 1;
@@ -949,20 +989,22 @@ function update() {
   game.physics.arcade.collide(floatySpikes, walls);
   game.physics.arcade.collide(platforms, walls);
   game.physics.arcade.collide(spikes, walls);
-  if (!godMode) {
+  if (!invincible && !godMode) {
     game.physics.arcade.overlap(player, spikes, killPlayer);
     game.physics.arcade.overlap(player, floatySpikes, killPlayer);
     game.physics.arcade.overlap(player, worms, killPlayer);
   }
   game.physics.arcade.overlap(player, items, collectItem);
   game.physics.arcade.overlap(player, leftFanWalls, function() {
-    player.body.velocity.x = baseFanVelocity - (numGearsCollected * gearBenefit);
+    player.body.velocity.x = baseFanVelocity -
+      (numGearsCollected * gearBenefit);
     player.body.angularVelocity = spinRate;
     player.body.angularDrag = spinRate * 0.2;
     player.scale.x = 1;
   });
   game.physics.arcade.overlap(player, rightFanWalls, function() {
-    player.body.velocity.x = -1 * (baseFanVelocity - (numGearsCollected * gearBenefit));
+    player.body.velocity.x = -1 * (baseFanVelocity -
+        (numGearsCollected * gearBenefit));
     player.body.angularVelocity = -1 * spinRate;
     player.body.angularDrag = spinRate * 0.2;
     player.scale.x = -1;
@@ -973,25 +1015,24 @@ function update() {
   if (!playerDead) {
     if (cursors.left.isDown ||
         leftArrow.input.checkPointerDown(game.input.activePointer, true)) {
-      console.log('LEFT');
       leftArrow.alpha = 0.5;
       useJetpack(true);
     } else if (cursors.right.isDown ||
         rightArrow.input.checkPointerDown(game.input.activePointer, true)) {
-      console.log('RIGHT');
       rightArrow.alpha = 0.5;
       useJetpack(false);
-    } else if (cursors.down.isDown) {
+    } else if (godMode && cursors.down.isDown) {
+      // Debug only.
       fallRate += 100;
-    } else if (cursors.up.isDown) {
-      fallRate = 0; // Stop immediately for debugging.
+    } else if (godMode && cursors.up.isDown) {
+      // Debug only.
+      fallRate = 0;
       jetpackFuel = 100;
       player.body.velocity.x = 0;
       jetpack.on = false;
       drawFuelbar();
     } else {
       // Stand still
-      console.log('STOP');
       leftArrow.alpha = 1.0;
       rightArrow.alpha = 1.0;
       player.frame = 4;
