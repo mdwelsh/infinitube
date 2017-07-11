@@ -1,9 +1,6 @@
 // TODO
 //
-// Fix worms
-// Lives and restart behavior
-// Game over screen
-// Credits
+// Multiple lives
 // Parachutes
 
 var PlayState = function () {};
@@ -17,6 +14,7 @@ PlayState.prototype = {
 
 
 const godMode = false;
+const maxLives = 3;
 const screenWidth = 40;
 const screenHeight = 20;
 const worldWidth = 40;
@@ -24,6 +22,9 @@ const worldHeight = 40;
 const tileSize = 32;
 const scoreTextX = (worldWidth - 8) * tileSize;
 const scoreTextY = 20;
+const livesX = (worldWidth - 8) * tileSize;
+const livesY = 70;
+const defaultSeed = 12345;
 
 const platformProb = 0.01;
 const spikeProb = 0.5;
@@ -64,6 +65,7 @@ const PLATFORM_LEFT = 'platformIndustrial_035.png';
 const PLATFORM_CENTER = 'platformIndustrial_036.png';
 const PLATFORM_RIGHT = 'platformIndustrial_037.png';
 
+var numLives = maxLives;
 var invincible = true;
 var playerDead = false;
 var curLayer = -1;
@@ -76,11 +78,10 @@ var fallDistance = 0;
 var lastCheckpointCreated = 0;
 var lastCheckpointTraversed = 0;
 var checkpointsTraversed = 0;
-var checkpointSeed = null;
+var checkpointSeed = [ defaultSeed ];
 var lastTick = 0;
 var jetpackFuel = 100;
 var lastJetpackUse = 0;
-
 
 function preload() {
   game.load.spritesheet('player', 'assets/player/p1_spritesheet.png',
@@ -123,6 +124,7 @@ var collectedGears;
 var fans;
 var walls;
 var fuelbar;
+var lives;
 var tapControls;
 var leftFanWalls;
 var rightFanWalls;
@@ -135,8 +137,7 @@ var gearSound;
 var checkpointSound;
 var timer;
 var glow;
-var killKey;
-var restartKey;
+var killKey; // Don't press this!
 var music;
 var background;
 var pauseText;
@@ -402,10 +403,11 @@ function makeWorm(y, onleft) {
   var worm = worms.create(xpos, y * tileSize, 'enemies', 'snakeSlime.png');
   var wiggle = worm.animations.add('wiggle', ['snakeSlime.png',
       'snakeSlime_ani.png'], 5, true, false);
+  game.physics.arcade.enable(worm);
   worm.angle = onleft ? 90 : -90;
+  worm.body.immovable = true;
   worm.checkWorldBounds = true;
   worm.outOfBoundsKill = true;
-  game.physics.arcade.enable(worm);
   wiggle.play();
   // Make the worm stretch in and out
   game.add.tween(worm.scale).to({ y: 3.0 }, 2000, Phaser.Easing.Linear.None,
@@ -532,24 +534,42 @@ function addToWorld() {
   }
 }
 
-function restartGame() {
+// Used to resume after death as well as restart in a clean state.
+function restartGame(clean) {
   if (!playerDead) {
     return;
   }
 
-  // Want to ensure we start building the world from the last checkpoint.
-  // Reset curLayer to be the last checkpoint traversed minus one (so buildWorld
-  // will start by creating that layer), and reset lastCheckpointCreated to be
-  // just behind checkpointGap so it will force the checkpoint to be the
-  // first thing created. Also set lastPopulatedLayer to the value at the
-  // last checkpoint we traversed.
-  curLayer = lastCheckpointTraversed - 1;
-  lastPopulatedLayer = lastCheckpointLastPopulatedLayer - 1;
-  lastCheckpointCreated = curLayer - (checkpointGap + 2);
+  if (clean) {
+    // Clean start.
+    numLives = maxLives;
+    curLayer = -1;
+    lastPopulatedLayer = 0;
+    lastCheckpointLastPopulatedLayer = 0;
+    fallDistance = 0;
+    lastCheckpointCreated = 0;
+    lastCheckpointTraversed = 0;
+    checkpointsTraversed = 0;
+    checkpointSeed = null;
+    lastTick = 0;
+  } else {
+    // Resume from death.
+    //
+    // Want to ensure we start building the world from the last checkpoint.
+    // Reset curLayer to be the last checkpoint traversed minus one (so buildWorld
+    // will start by creating that layer), and reset lastCheckpointCreated to be
+    // just behind checkpointGap so it will force the checkpoint to be the
+    // first thing created. Also set lastPopulatedLayer to the value at the
+    // last checkpoint we traversed.
+    curLayer = lastCheckpointTraversed - 1;
+    lastPopulatedLayer = lastCheckpointLastPopulatedLayer - 1;
+    lastCheckpointCreated = curLayer - (checkpointGap + 2);
+  }
 
-  fallRate = 0;
   numGearsCollected = 0;
+  fallRate = 0;
   jetpackFuel = 100;
+  lastJetpackUse = 0;
   playerDead = false;
   game.state.start('play');
 }
@@ -558,7 +578,6 @@ function create() {
     if (checkpointSeed != null) {
       worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
     } else {
-      //worldRnd = new Phaser.RandomDataGenerator([57575]);
       worldRnd = new Phaser.RandomDataGenerator();
     }
 
@@ -618,7 +637,6 @@ function create() {
     checkpointSound = game.add.audio('checkpoint');
     checkpointSound.allowMultiple = false;
 
-
     jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150);
     jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
     jetpack.gravity = 0;
@@ -629,6 +647,8 @@ function create() {
 
     fuelbar = game.add.group();
     fuelbar.enableBody = false;
+    lives = game.add.group();
+    lives.enableBody = false;
     tapControls = game.add.group();
     tapControls.enableBody = false;
 
@@ -659,13 +679,12 @@ function create() {
 
     buildWorld();
     drawFuelbar();
+    drawLives();
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
     killKey = game.input.keyboard.addKey(Phaser.Keyboard.K);
     killKey.onDown.add(killPlayer, this);
-    restartKey = game.input.keyboard.addKey(Phaser.Keyboard.G);
-    restartKey.onDown.add(restartGame, this);
     pauseKey = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
     pauseKey.onDown.add(pauseGame, this);
 
@@ -711,8 +730,8 @@ function create() {
     game.world.bringToTop(collectedGears);
     game.world.bringToTop(platforms);
     game.world.bringToTop(fuelbar);
+    game.world.bringToTop(lives);
     game.world.bringToTop(tapControls);
-
 
     timer = game.time.create(false);
     timer.loop(tickRate, tick);
@@ -733,12 +752,13 @@ function create() {
     collectedGearsText.angle = -90;
 
     scoreText = game.add.text(scoreTextX, scoreTextY,
-        'Checkpoints: 0', { font: 'Bubbler One', fontSize: '24px',
-          fill: '#ffffff' });
+        'Checkpoints: ' + checkpointsTraversed,
+        { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
 
     // Create player.
     player = game.add.sprite((worldWidth / 2) * tileSize, -100, 'player');
     player.anchor.setTo(.5,.5);
+    player.frame = 4;
     game.physics.arcade.enableBody(player);
     player.body.bounce.y = 0;
 
@@ -851,6 +871,27 @@ function pauseGame() {
   }
 }
 
+function gameOver() {
+  gameOverScreen = game.add.tileSprite(0, 0, screenWidth * tileSize,
+      screenHeight * tileSize, 'platformerRequest', 29);
+  gameOverScreen.tint = 0x802020;
+  gameOverScreen.alpha = 0.5;
+
+  gameOverText = game.add.text(game.world.centerX, game.world.centerY/2,
+      'game over', { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
+  gameOverText.anchor.setTo(0.5);
+
+  tryAgainText = game.add.text(game.world.centerX, game.world.centerY/2 + 60,
+      'try again?', { font: 'Bubbler One', fontSize: '40px', fill: '#f04040' });
+  tryAgainText.anchor.setTo(0.5);
+  tryAgainText.inputEnabled = true;
+  tryAgainText.events.onInputDown.add(function() {
+    game.time.events.add(Phaser.Timer.SECOND, function() {
+      restartGame(true);
+    });
+  });
+}
+
 function killPlayer() {
   if (playerDead) {
     return;
@@ -858,6 +899,11 @@ function killPlayer() {
   playerDead = true;
   dieSound.play('', 0, 1, false, false);
   music.stop();
+  numLives--;
+  drawLives();
+  if (numLives == 0) {
+    gameOver();
+  }
 
   // Stop the player
   jetpack.on = false;
@@ -884,6 +930,11 @@ function killPlayer() {
 
   colorChange.chain(smokeIn);
   smokeIn.chain(smokeOut);
+  smokeOut.onComplete.add(function() {
+    game.time.events.add(Phaser.Timer.SECOND, function() {
+      restartGame(false);
+    });
+  });
   colorChange.start();
 }
 
@@ -963,6 +1014,20 @@ function drawFuelbar() {
   fuelbar.getFirstDead(true, fuelbarX, fuelbarY, fi);
 }
 
+function drawLives() {
+  // Replace group with the new sprite.
+  lives.forEach(function(c) {
+    c.destroy();
+  });
+
+  for (var i = 0; i < numLives; i++) {
+    var l = lives.create(livesX + (i * 40), livesY, 'player');
+    l.scale.x = 0.5;
+    l.scale.y = 0.5;
+    l.frame = 4;
+  }
+}
+
 function useJetpack(goleft) {
   if (jetpackFuel < jetpackFuelRate) {
     jetpack.on = false;
@@ -1038,7 +1103,6 @@ function update() {
       // Stand still
       leftArrow.alpha = 1.0;
       rightArrow.alpha = 1.0;
-      player.frame = 4;
       jetpack.on = false;
     }
   }
