@@ -1,7 +1,10 @@
 // TODO
 //
+// Fix worms
+// Lives and restart behavior
+// Game over screen
+// Credits
 // Parachutes
-// Lasers
 
 var PlayState = function () {};
 

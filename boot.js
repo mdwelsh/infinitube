@@ -14,9 +14,37 @@ BootState.prototype = {
     var t = game.add.text(game.world.centerX, y, s,
         { font: font, fontSize: size, fill: '#ffffff' });
     t.anchor.setTo(0.5);
+    return t;
   },
 
   startGame: function() {
+  },
+
+  credits: [
+    'a game by Team Sidney',
+    'Concept and design by Sidney Welsh',
+    'Programming by Matt Welsh',
+  ],
+
+  creditsIndex: 0,
+
+  showCredits: function() {
+    var cline = this.makeLine(
+        this.credits[this.creditsIndex % this.credits.length],
+        400, '30px', 'Bubbler One');
+    cline.alpha = 0;
+
+    var fadeIn = game.add.tween(cline).to({ alpha: 1.0 }, 200,
+        Phaser.Easing.Linear.None, false, 0, 0, false);
+    var fadeOut = game.add.tween(cline).to({ alpha: 0 }, 200,
+        Phaser.Easing.Linear.None, false, 2000, 0, false);
+    var stuff = this;
+    fadeOut.onComplete.add(function() {
+      stuff.creditsIndex++;
+      stuff.showCredits();
+    });
+    fadeIn.chain(fadeOut);
+    fadeIn.start();
   },
 
   create: function() {
@@ -43,7 +71,6 @@ BootState.prototype = {
         Phaser.Easing.Linear.None, true, 0, -1, true);
 
     this.makeLine('Infinitube', 150, '200px', 'Russo One');
-    this.makeLine('a game by Team Sidney', 400, '30px', 'Bubbler One');
     if (!game.device.desktop) {
       this.makeLine('Tap arrows to move left or right', 450, '20px',
         'Bubbler One');
@@ -54,21 +81,31 @@ BootState.prototype = {
     this.makeLine('Collect gears to increase power', 480, '20px',
         'Bubbler One');
     this.makeLine('Try not to get hurt', 510, '20px', 'Bubbler One');
+    this.showCredits();
 
-    // Go fullscreen on mobile.
     if (!game.device.desktop) {
-      this.makeLine('tap anywhere to begin', 600, '20px');
       game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
-      this.game.input.onDown.add(function() {
-        game.scale.startFullScreen(false);
-        game.time.events.add(Phaser.Timer.SECOND, function() {
-          game.state.start('play');
-        }, this);
-      }, this);
-    } else {
-      this.makeLine('press any key to begin', 600, '20px');
     }
+    var startLine = this.makeLine('start game', 570, '40px', 'Bubbler One');
+    startLine.fill = '#f04040';
+    startLine.inputEnabled = true;
+    startLine.events.onInputDown.add(function() {
+      if (!game.device.desktop) {
+        game.scale.startFullScreen(false);
+      }
+      game.time.events.add(Phaser.Timer.SECOND, function() {
+        game.state.start('play');
+      }, this);
+    });
 
+    var creditsLine = this.makeLine('credits', 620, '30px', 'Bubbler One');
+    creditsLine.fill = '#a0a0ff';
+    creditsLine.inputEnabled = true;
+    creditsLine.events.onInputDown.add(function() {
+      game.time.events.add(Phaser.Timer.SECOND, function() {
+        game.state.start('credits');
+      }, this);
+    });
   },
 
 
