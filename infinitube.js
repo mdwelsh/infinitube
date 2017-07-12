@@ -39,7 +39,7 @@ const baseFanVelocity = 300;
 const gearBenefit = 20;
 const fanSpin = 1000;
 const spinRate = 800;
-const checkpointGap = 50;
+const checkpointGap = 200;
 const tickRate = 100;
 const jetpackFuelRate = 1;
 const jetpackReplenishRate = 1;
@@ -373,7 +373,6 @@ function makeFuel(y) {
   c.anchor.setTo(.5,.5);
   c.width = tileSize * 1.5;
   c.height = tileSize * 2;
-  c.body.immovable = true;
   c.checkWorldBounds = true;
   c.outOfBoundsKill = true;
   c._itemType = 'fuel';
