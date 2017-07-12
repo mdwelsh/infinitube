@@ -29,7 +29,7 @@ const defaultSeed = 12345;
 const platformProb = 0.02;
 const spikeProb = 0.5;
 const fanProb = 0.02;
-const fuelProb = 0.2;
+const fuelProb = 0.02;
 const floatySpikeProb = 0.01;
 const wormProb = 0.01;
 
