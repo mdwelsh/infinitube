@@ -28,8 +28,8 @@ const defaultSeed = 12345;
 
 const platformProb = 0.02;
 const spikeProb = 0.5;
-const fanProb = 0.0;
-const fuelProb = 0.4;
+const fanProb = 0.02;
+const fuelProb = 0.2;
 const floatySpikeProb = 0.01;
 const wormProb = 0.01;
 
@@ -39,7 +39,6 @@ const baseFanVelocity = 300;
 const gearBenefit = 20;
 const fanSpin = 1000;
 const spinRate = 800;
-const energySize = 70;
 const checkpointGap = 50;
 const tickRate = 100;
 const jetpackFuelRate = 1;
@@ -89,7 +88,8 @@ function preload() {
       72, 97, -1, 0, 1);
   game.load.image('arrow','assets/arrow.png');
   game.load.image('spikes','assets/spikesBottomAlt2.png');
-  game.load.image('energy','assets/energywave.png');
+  game.load.image('ewave-left','assets/ewave-left.png');
+  game.load.image('ewave-right','assets/ewave-right.png');
   game.load.atlasXML('platformer', 'assets/platformer-tiles.png',
       'assets/platformer-tiles.xml');
   game.load.atlasXML('platformerIndustrial',
@@ -140,7 +140,6 @@ var gearSound;
 var checkpointSound;
 var timer;
 var glow;
-var energy;
 var killKey; // Don't press this!
 var music;
 var background;
@@ -294,14 +293,14 @@ function makeFan(x, y, onLeft) {
 
   // Fan emitter
   var fe = game.add.emitter(onLeft ? 50 : -50, 0, 50);
-  fe.makeParticles(energy, 0, 1000, false, false);
+  fe.makeParticles(onLeft ? 'ewave-right' : 'ewave-left', 0, 20, false,
+      false);
   fe.gravity = 0;
-  //fe.angle = 0;
   fe.setAlpha(1, 0, 600);
-  fe.setScale(0.01, 0.4, 0.01, 0.4, 200);
-  fe.start(true, 2000, 250);
+  fe.setScale(0.1, 0.4, 0.1, 0.4, 600);
+  fe.start(true, 1000, 200);
   var mult = onLeft ? -1 : 1;
-  fe.setRotation(0, 0);
+  fe.setRotation(-4, 4);
   fe.minParticleSpeed.set(-400 * mult, 0);
   fe.maxParticleSpeed.set(-800 * mult, 0);
   fe.on = true;
@@ -610,23 +609,6 @@ function create() {
       .drawCircle(0, 0, 20)
       .endFill()
       .generateTexture();
-
-    // Fan energy
-    var energygr = new Phaser.Graphics(game, 0, 0)
-      .lineStyle(10, 0xf02020, 0.5)
-      .moveTo(energySize/1.5, 0)
-      .bezierCurveTo(energySize/1.5, 0, energySize/1.5, energySize/1.5, 0, energySize/1.5)
-      .lineStyle(7, 0x702020, 0.5)
-      .moveTo(energySize/2, 0)
-      .bezierCurveTo(energySize/2, 0, energySize/2, energySize/2, 0, energySize/2)
-      .lineStyle(6, 0x402020, 0.5)
-      .moveTo(energySize/3, 0)
-      .bezierCurveTo(energySize/3, 0, energySize/3, energySize/3, 0, energySize/3)
-      .generateTexture();
-    energy = game.add.bitmapData(energySize*2, energySize*2);
-    var te = game.add.sprite(0, 0, energygr);
-    te.angle = -35;
-    energy.draw(te, 50, 50);
 
     // Floaty spike sprite
     var left = PLATFORM_LEFT;
