@@ -28,8 +28,8 @@ const defaultSeed = 12345;
 
 const platformProb = 0.02;
 const spikeProb = 0.5;
-const fanProb = 0;
-const fuelProb = 0.02;
+const fanProb = 0.0;
+const fuelProb = 0.4;
 const floatySpikeProb = 0.01;
 const wormProb = 0.01;
 
@@ -89,6 +89,7 @@ function preload() {
       72, 97, -1, 0, 1);
   game.load.image('arrow','assets/arrow.png');
   game.load.image('spikes','assets/spikesBottomAlt2.png');
+  game.load.image('energy','assets/energywave.png');
   game.load.atlasXML('platformer', 'assets/platformer-tiles.png',
       'assets/platformer-tiles.xml');
   game.load.atlasXML('platformerIndustrial',
@@ -98,6 +99,7 @@ function preload() {
       70, 70, -1, 0, 0);
   game.load.image('whitepuff','assets/smoke/whitePuff00.png');
   game.load.image('gascan','assets/gascan.png');
+  game.load.image('parachute','assets/parachute.png');
   game.load.image('background','assets/spaceship_bg_2.png');
   game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-small.png',
       256, 256, -1, 0, 1);
@@ -296,7 +298,7 @@ function makeFan(x, y, onLeft) {
   fe.gravity = 0;
   //fe.angle = 0;
   fe.setAlpha(1, 0, 600);
-  fe.setScale(1.0, 0.5, 1.0, 0.5, 200);
+  fe.setScale(0.01, 0.4, 0.01, 0.4, 200);
   fe.start(true, 2000, 250);
   var mult = onLeft ? -1 : 1;
   fe.setRotation(0, 0);
@@ -372,7 +374,7 @@ function makeFuel(y) {
   c.anchor.setTo(.5,.5);
   c.width = tileSize * 1.5;
   c.height = tileSize * 2;
-  //c.body.immovable = true;
+  c.body.immovable = true;
   c.checkWorldBounds = true;
   c.outOfBoundsKill = true;
   c._itemType = 'fuel';
@@ -988,19 +990,18 @@ function hitCheckpoint(p, cw) {
 
   checkpointSound.play('', 0, 1, false, false);
 
-  // Change the color of the checkpoint lights. This is a bit crude; each light
-  // should probably be its own object.
+  // Change the color of the checkpoint lights.
   lights.forEachAlive(function(c) {
-    if (c && c._ll) {
+    if (c && c._ll && c._layer == cw._layer) {
       c._ll.loadTexture('platformerIndustrial', 'platformIndustrial_056.png');
     }
-    if (c && c._llg) {
+    if (c && c._llg && c._layer == cw._layer) {
       c._llg.tint = 0xff0000;
     }
-    if (c && c._rl) {
+    if (c && c._rl && c._layer == cw._layer) {
       c._rl.loadTexture('platformerIndustrial', 'platformIndustrial_056.png');
     }
-    if (c && c._rlg) {
+    if (c && c._rlg && c._layer == cw._layer) {
       c._rlg.tint = 0xff0000;
     }
   });
