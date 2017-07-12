@@ -26,10 +26,9 @@ const livesX = (worldWidth - 8) * tileSize;
 const livesY = 70;
 const defaultSeed = 12345;
 
-const platformProb = 0.01;
+const platformProb = 0.02;
 const spikeProb = 0.5;
-//const fanProb = 0.03;
-const fanProb = 1.0;
+const fanProb = 0;
 const fuelProb = 0.02;
 const floatySpikeProb = 0.01;
 const wormProb = 0.01;
@@ -555,6 +554,10 @@ function restartGame(clean) {
     checkpointsTraversed = 0;
     checkpointSeed = null;
     lastTick = 0;
+
+    console.log('Clean start, numLives is ' + numLives);
+    console.log('Clean start, checkpoints is ' + checkpointsTraversed);
+
   } else {
     // Resume from death.
     //
@@ -921,9 +924,6 @@ function killPlayer() {
   music.stop();
   numLives--;
   drawLives();
-  if (numLives == 0) {
-    gameOver();
-  }
 
   // Stop the player
   jetpack.on = false;
@@ -951,9 +951,13 @@ function killPlayer() {
   colorChange.chain(smokeIn);
   smokeIn.chain(smokeOut);
   smokeOut.onComplete.add(function() {
-    game.time.events.add(Phaser.Timer.SECOND, function() {
-      restartGame(false);
-    });
+    if (numLives == 0) {
+      gameOver();
+    } else {
+      game.time.events.add(Phaser.Timer.SECOND, function() {
+        restartGame(false);
+      });
+    }
   });
   colorChange.start();
 }
