@@ -44,9 +44,6 @@ CreditsState.prototype = {
     { text: 'gasoline can by ProSymbols from the Noun Project',
       url: 'https://thenounproject.com/search/?q=fuel%20can&i=797581',
     },
-    { text: 'Parachute package by Joe Looney from the Noun Project',
-      url: 'https://thenounproject.com/search/?q=parachute&i=300787',
-    },
   ],
 
   creditsIndex: 0,
