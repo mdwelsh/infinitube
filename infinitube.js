@@ -13,7 +13,7 @@ PlayState.prototype = {
 };
 
 
-const godMode = false;
+const godMode = true;
 const maxLives = 3;
 const screenWidth = 40;
 const screenHeight = 20;
@@ -33,9 +33,9 @@ const spikeProb = 0.5;
 const fanProb = 0.02;
 const fuelProb = 0.02;
 const floatySpikeProb = 0.01;
-const wormProb = 0.01;
+const wormProb = 0.1;
 
-const minObstacleGap = 4;
+const minObstacleGap = 10;
 const maxGears = 12;
 const baseFanVelocity = 300;
 const gearBenefit = 20;
@@ -59,10 +59,14 @@ const collectedGearsTextX = (screenWidth * tileSize) - 150;
 const collectedGearsTextY = (screenHeight * tileSize) - 30;
 const floatySpikeWidth = 3;
 const initialFallRate = 300;
-const parachuteFallRate = 30;
-const fallRateIncrease = 50;
+const parachuteFallRate = 100;
+const fallRateIncrease = 60;
 const maxFallRate = 1000;
 const initialParachutes = 3;
+const longWormLength = 6;
+const longWormSegment = 100;
+const longWormWidth = 20;
+const parachuteWarningTime = 3 * Phaser.Timer.SECOND;
 
 const WALL = 29;
 const PLATFORM_LEFT = 'platformIndustrial_035.png';
@@ -76,9 +80,7 @@ var curLayer = -1;
 var lastPopulatedLayer = 0;
 var lastCheckpointLastPopulatedLayer = 0;
 var debugString = '';
-var fallRate = 0;
 var numGearsCollected = 0;
-var fallDistance = 0;
 var lastCheckpointCreated = 0;
 var lastCheckpointTraversed = 0;
 var checkpointsTraversed = 0;
@@ -88,11 +90,11 @@ var jetpackFuel = 100;
 var lastJetpackUse = 0;
 var numParachutes = initialParachutes;
 var parachuteInUse = false;
+var rightSizing = false;
 
 function preload() {
   game.load.spritesheet('player', 'assets/player/p1_spritesheet.png',
       72, 97, -1, 0, 1);
-  game.load.image('arrow','assets/arrow.png');
   game.load.image('spikes','assets/spikesBottomAlt2.png');
   game.load.image('ewave-left','assets/ewave-left.png');
   game.load.image('ewave-right','assets/ewave-right.png');
@@ -153,6 +155,8 @@ var parachuteSound;
 var parachuteDoneSound;
 var timer;
 var glow;
+var longWormLeft;
+var longWormRight;
 var killKey; // Don't press this!
 var music;
 var background;
@@ -242,13 +246,14 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
     c._layer = curLayer;
 
     if (hasSpikes) {
-      c = spikes.getFirstDead(true, ((x + i) * tileSize) + offset,
+      c = spikes.create(((x + i) * tileSize) + offset,
           (y-1) * tileSize, 'spikes');
       c.width = tileSize;
       c.height = tileSize;
       c.body.immovable = true;
       c.checkWorldBounds = true;
       c.outOfBoundsKill = true;
+      c.body.setSize(c.body.width, c.body.height/4, 0, c.body.height/2);
       c._layer = curLayer;
     }
   }
@@ -272,7 +277,7 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
 
 function makeFan(x, y, onLeft) {
   // Start with an empty sprite to anchor things.
-  var p = fans.getFirstDead(true, x * tileSize, y * tileSize,
+  var p = fans.create(x * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_067.png');
   p.anchor.setTo(.5,.5);
   p.body.immovable = true;
@@ -405,6 +410,8 @@ function makeFloatySpike(y) {
   fs.checkWorldBounds = true;
   fs.outOfBoundsKill = true;
   game.physics.arcade.enable(fs);
+  // Reduce size of body so collisions are less iffy.
+  fs.body.setSize(fs.width * 0.8, 5, fs.width * 0.1, fs.height / 2);
   fs.body.velocity.setTo(200, 0);
   fs.body.bounce.set(0.8);
 }
@@ -412,25 +419,29 @@ function makeFloatySpike(y) {
 function makeWorm(y, onleft) {
   var xpos;
   if (onleft) {
-    xpos = 15 * tileSize;
+    xpos = -5 * tileSize;
   } else {
-    xpos = (worldWidth - 15) * tileSize;
+    xpos = (worldWidth - 14) * tileSize;
   }
 
-  var worm = worms.create(xpos, y * tileSize, 'enemies', 'snakeSlime.png');
-  var wiggle = worm.animations.add('wiggle', ['snakeSlime.png',
-      'snakeSlime_ani.png'], 5, true, false);
+  var worm = worms.create(xpos, y * tileSize,
+      onleft ? longWormLeft : longWormRight);
+
   game.physics.arcade.enable(worm);
-  worm.angle = onleft ? 90 : -90;
+  worm.anchor.setTo(0, 0.5);
   worm.body.immovable = true;
   worm.checkWorldBounds = true;
   worm.outOfBoundsKill = true;
-  wiggle.play();
-  // Make the worm stretch in and out
-  game.add.tween(worm.scale).to({ y: 3.0 }, 2000, Phaser.Easing.Linear.None,
-      true, 0, -1, true);
+  worm.body.setSize(100, 40, onleft ? worm.width - 140 : 40, 20);
+  // Make the worm wiggle.
+  var wiggle = game.add.tween(worm.scale).to( { y: -1.0 }, 1,
+      Phaser.Easing.Linear.None, false, 1000, -1, true);
+  wiggle.repeatDelay(200);
+  wiggle.yoyoDelay(200);
+  wiggle.start();
+
   if (onleft) {
-    game.add.tween(worm).to({ x: 24 * tileSize }, 2000,
+    game.add.tween(worm).to({ x: 5 * tileSize }, 2000,
         Phaser.Easing.Linear.None, true, 0, -1, true);
   } else {
     game.add.tween(worm).to({ x: (worldWidth - 24) * tileSize }, 2000,
@@ -447,13 +458,15 @@ function makeLayer(y) {
   marker.outOfBoundsKill = true;
   marker._layer = curLayer;
 
+  // Create a checkpoint if it's time.
   if ((curLayer - lastCheckpointCreated >= checkpointGap) &&
       (curLayer - lastPopulatedLayer >= minObstacleGap)) {
     var seed = makeCheckpoint(y);
     lastCheckpointCreated = curLayer;
-    lastPopulatedLater = curLayer;
+    lastPopulatedLayer = curLayer;
     return;
   }
+
 
   // Next check if we have had enough free space between obstacles.
   var ok = (curLayer - lastPopulatedLayer) >= minObstacleGap;
@@ -563,7 +576,6 @@ function restartGame(clean) {
     curLayer = -1;
     lastPopulatedLayer = 0;
     lastCheckpointLastPopulatedLayer = 0;
-    fallDistance = 0;
     lastCheckpointCreated = 0;
     lastCheckpointTraversed = 0;
     checkpointsTraversed = 0;
@@ -588,10 +600,11 @@ function restartGame(clean) {
   }
 
   numGearsCollected = 0;
-  fallRate = 0;
+  player._fallRate = 0;
   jetpackFuel = 100;
   numParachutes = initialParachutes;
   parachuteInUse = false;
+  rightSizing = false;
   lastJetpackUse = 0;
   playerDead = false;
   game.state.start('play');
@@ -648,6 +661,27 @@ function create() {
       s.width = tileSize;
       s.height = tileSize;
       floatySpike.draw(s, i * tileSize, 0);
+    }
+
+    // Long worm is long.
+    longWormLeft = game.add.bitmapData(longWormSegment * longWormLength,
+        longWormWidth * 4);
+    for (var i = 0; i < longWormLength; i++) {
+      var w = game.add.sprite(0, 0, 'enemies', 'snakeSlime.png');
+      w.anchor.setTo(0.5, 0.5);
+      w.angle = 90;
+      longWormLeft.draw(w, i * longWormSegment, longWormWidth * 2);
+    }
+
+    longWormRight = game.add.bitmapData(longWormSegment * longWormLength,
+        longWormWidth * 4);
+    for (var i = 0; i < longWormLength-1; i++) {
+      var w = game.add.sprite(0, 0, 'enemies', 'snakeSlime.png');
+      w.anchor.setTo(0.5, 0.5);
+      w.angle = -90;
+      longWormRight.draw(
+          w, (longWormSegment * longWormLength) - ((i+1) * longWormSegment),
+          longWormWidth * 2);
     }
 
     // Add sounds
@@ -800,9 +834,14 @@ function create() {
     player.frame = 4;
     game.physics.arcade.enableBody(player);
     player.body.bounce.y = 0;
+    // Make collisions only count for the guts of the player.
+    player.body.setSize(player.width/2, player.height/2,
+        player.width/4, player.height/4);
 
     parachute = game.add.sprite(0, -100, 'parachute');
-    parachute.anchor.setTo(.5, .5);
+    parachute.anchor.setTo(.5, .2);
+    parachute.scale.x = 0.1;
+    parachute.scale.y = 0.1;
     player.addChild(parachute);
     parachute.visible = false;
 
@@ -810,7 +849,7 @@ function create() {
     var warpInPlayer = game.add.tween(player).to({ y: 150, angle: 720 }, 1000,
         Phaser.Easing.Linear.None, false, 0, 0, false);
     warpInPlayer.onComplete.add(function() {
-      fallRate = initialFallRate;
+      player._fallRate = initialFallRate;
     });
     var blinkPlayer = game.add.tween(player).to({ alpha: 0.4 }, 200,
         Phaser.Easing.Linear.None, false, 0, 10, true);
@@ -831,7 +870,6 @@ function tick() {
     jetpackFuel = Math.min(jetpackFuel + jetpackReplenishRate, 100);
     drawFuelbar();
   }
-  fallDistance += fallRate * elapsed;
   lastTick = now;
 }
 
@@ -917,7 +955,6 @@ function pauseGame() {
 }
 
 function useParachute() {
-  console.log('useParachute called - in use ' + parachuteInUse + ' num ' + numParachutes);
   if (parachuteInUse) {
     return;
   }
@@ -925,24 +962,47 @@ function useParachute() {
     return;
   }
 
-  parachuteSound.play('', 0, 1, false, false);
-  parachute.visible = true;
   parachuteInUse = true;
   numParachutes--;
   drawParachutes();
-  console.log('numParachutes is now ' + numParachutes);
+
+  parachute.visible = true;
+  parachuteSound.play('', 0, 1, false, false);
+  game.add.tween(parachute.scale).to({ x: 0.7, y: 0.7 }, 500,
+      Phaser.Easing.Linear.None, true, 0, 0, false);
 
   player.body.angularVelocity = 0;
-  player.angle = 0;
-  fallRate = parachuteFallRate;
-  game.time.events.add(3 * Phaser.Timer.SECOND, function() {
-    console.log('Parachute done');
-    if (parachuteInUse) {
-      parachuteDoneSound.play('', 0, 1, false, false);
-      parachute.visible = false;
-      parachuteInUse = false;
-      fallRate = initialFallRate;
+  player.body.angularDrag = 0;
+  var rightSize = game.add.tween(player).to(
+      { angle: 0, _fallRate: parachuteFallRate },
+      1000, Phaser.Easing.Linear.None, false, 0, 0, false);
+  rightSize.onComplete.add(function() {
+    rightSizing = false;
+  });
+  rightSizing = true;
+  rightSize.start();
+
+  game.time.events.add(parachuteWarningTime, function() {
+    if (!parachuteInUse) {
+      return;
     }
+    var blinkParachute = game.add.tween(parachute).to({ alpha: 0.4 }, 200,
+        Phaser.Easing.Linear.None, false, 0, 5, true);
+    blinkParachute.onComplete.add(function() {
+      if (!parachuteInUse) {
+        return;
+      }
+      parachuteDoneSound.play('', 0, 1, false, false);
+      var disappear = game.add.tween(parachute.scale).to({ x: 0.1, y: 0.1 },
+          500, Phaser.Easing.Linear.None, false, 0, 0, false);
+      disappear.onComplete.add(function() {
+        parachute.visible = false;
+        parachuteInUse = false;
+        player._fallRate = initialFallRate;
+      });
+      disappear.start();
+    });
+    blinkParachute.start();
   });
 }
 
@@ -956,8 +1016,15 @@ function gameOver() {
       'game over', { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
   gameOverText.anchor.setTo(0.5);
 
+  var tryAgainString;
+  if (game.device.desktop) {
+    tryAgainString = 'click to try again';
+  } else {
+    tryAgainString = 'tap to try again';
+  }
   tryAgainText = game.add.text(game.world.centerX, game.world.centerY/2 + 60,
-      'try again?', { font: 'Bubbler One', fontSize: '40px', fill: '#f04040' });
+      tryAgainString,
+      { font: 'Bubbler One', fontSize: '40px', fill: '#f04040' });
   tryAgainText.anchor.setTo(0.5);
   tryAgainText.inputEnabled = true;
   tryAgainText.events.onInputDown.add(function() {
@@ -981,7 +1048,7 @@ function killPlayer() {
   jetpack.on = false;
   player.body.velocity.x = 0;
   player.body.velocity.y = 0;
-  fallRate = 0;
+  player._fallRate = 0;
 
   // Change the player's color
   var colorChange = game.add.tween(player).to(
@@ -1019,8 +1086,9 @@ function hitCheckpoint(p, cw) {
     return;
   }
   lastCheckpointTraversed = cw._layer;
-  if (fallRate < maxFallRate) {
-    fallRate = Math.min(fallRate + fallRateIncrease, maxFallRate);
+  if (player._fallRate < maxFallRate) {
+    player._fallRate = Math.min(player._fallRate + fallRateIncrease,
+        maxFallRate);
   }
 
   // This is the value of lastPopulatedLayer as seen at this checkpoint.
@@ -1127,11 +1195,15 @@ function useJetpack(goleft) {
   var mult = goleft ? -1 : 1;
   player.body.velocity.x = 150 * mult;
   if (!parachuteInUse) {
+    // Spiral like crazy.
     player.body.angularVelocity = (spinRate / 2) * mult;
     player.body.angularDrag = spinRate * 0.2;
   } else {
-    // TODO - Fix this so it rolls
-    player.angle = goleft ? -20 : 20;
+    // Roll to the side when parachute is on, but only if we're rightsized.
+    if (!rightSizing) {
+      game.add.tween(player).to({ angle: goleft ? -30 : 30 }, 200,
+          Phaser.Easing.Linear.None, true, 0, 0, false);
+    }
   }
   player.scale.x = mult;
     
@@ -1187,18 +1259,9 @@ function update() {
       useJetpack(false);
     } else if (godMode && cursors.down.isDown) {
       // Debug only.
-      fallRate += 100;
+      player._fallRate += 100;
     } else if (cursors.up.isDown) {
-      if (godMode) {
-        // Debug only.
-        fallRate = 0;
-        jetpackFuel = 100;
-        player.body.velocity.x = 0;
-        jetpack.on = false;
-        drawFuelbar();
-      } else {
-        useParachute();
-      }
+      useParachute();
     } else {
       // Stand still
       leftArrow.alpha = 1.0;
@@ -1208,6 +1271,7 @@ function update() {
   }
 
   // Slide everything up.
+  var fallRate = player._fallRate || 0;
   background.tilePosition.y -= fallRate / 1000;
   markers.forEachAlive(function(c) {
     c.body.velocity.y = -1 * fallRate;
