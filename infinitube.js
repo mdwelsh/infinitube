@@ -24,6 +24,8 @@ const scoreTextX = (worldWidth - 8) * tileSize;
 const scoreTextY = 20;
 const livesX = (worldWidth - 8) * tileSize;
 const livesY = 70;
+const parachutesX = (worldWidth - 8) * tileSize;
+const parachutesY = 140;
 const defaultSeed = 12345;
 
 const platformProb = 0.02;
@@ -57,8 +59,10 @@ const collectedGearsTextX = (screenWidth * tileSize) - 150;
 const collectedGearsTextY = (screenHeight * tileSize) - 30;
 const floatySpikeWidth = 3;
 const initialFallRate = 300;
+const parachuteFallRate = 30;
 const fallRateIncrease = 50;
 const maxFallRate = 1000;
+const initialParachutes = 3;
 
 const WALL = 29;
 const PLATFORM_LEFT = 'platformIndustrial_035.png';
@@ -82,6 +86,8 @@ var checkpointSeed = [ defaultSeed ];
 var lastTick = 0;
 var jetpackFuel = 100;
 var lastJetpackUse = 0;
+var numParachutes = initialParachutes;
+var parachuteInUse = false;
 
 function preload() {
   game.load.spritesheet('player', 'assets/player/p1_spritesheet.png',
@@ -107,9 +113,12 @@ function preload() {
       'assets/player/enemies.xml');
 
   game.load.audio('bump', 'assets/sounds/sfx_sounds_impact13.wav');
+  game.load.audio('start', 'assets/sounds/sfx_sound_mechanicalnoise3.wav');
   game.load.audio('die', 'assets/sounds/sfx_sounds_negative1.wav');
   game.load.audio('gear', 'assets/sounds/sfx_coin_cluster3.wav');
   game.load.audio('checkpoint', 'assets/sounds/sfx_menu_select1.wav');
+  game.load.audio('parachute', 'assets/sounds/sfx_sounds_powerup4.wav');
+  game.load.audio('parachutedone', 'assets/sounds/sfx_alarm_loop3.wav');
   game.load.audio('music', 'assets/awake10_megaWall.mp3');
 }
 
@@ -128,6 +137,7 @@ var fans;
 var walls;
 var fuelbar;
 var lives;
+var parachutes;
 var tapControls;
 var leftFanWalls;
 var rightFanWalls;
@@ -135,9 +145,12 @@ var lights;
 var floatySpike;
 var scoreText;
 var bumpSound;
+var startSound;
 var dieSound;
 var gearSound;
 var checkpointSound;
+var parachuteSound;
+var parachuteDoneSound;
 var timer;
 var glow;
 var killKey; // Don't press this!
@@ -148,6 +161,8 @@ var pauseScreen;
 var leftArrow;
 var rightArrow;
 var pauseButton;
+var parachuteButton;
+var parachute;
 
 function makeWalls(y) {
   var wall;
@@ -575,6 +590,8 @@ function restartGame(clean) {
   numGearsCollected = 0;
   fallRate = 0;
   jetpackFuel = 100;
+  numParachutes = initialParachutes;
+  parachuteInUse = false;
   lastJetpackUse = 0;
   playerDead = false;
   game.state.start('play');
@@ -638,10 +655,16 @@ function create() {
     bumpSound.allowMultiple = false;
     dieSound = game.add.audio('die');
     dieSound.allowMultiple = false;
+    startSound = game.add.audio('start');
+    startSound.allowMultiple = false;
     gearSound = game.add.audio('gear');
     gearSound.allowMultiple = false;
     checkpointSound = game.add.audio('checkpoint');
     checkpointSound.allowMultiple = false;
+    parachuteSound = game.add.audio('parachute');
+    parachuteSound.allowMultiple = false;
+    parachuteDoneSound = game.add.audio('parachutedone');
+    parachuteDoneSound.allowMultiple = false;
 
     jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150);
     jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
@@ -655,6 +678,8 @@ function create() {
     fuelbar.enableBody = false;
     lives = game.add.group();
     lives.enableBody = false;
+    parachutes = game.add.group();
+    parachutes.enableBody = false;
     tapControls = game.add.group();
     tapControls.enableBody = false;
 
@@ -686,6 +711,7 @@ function create() {
     buildWorld();
     drawFuelbar();
     drawLives();
+    drawParachutes();
 
     //  Our controls.
     cursors = game.input.keyboard.createCursorKeys();
@@ -725,6 +751,12 @@ function create() {
     pauseButton.inputEnabled = true;
     pauseButton.events.onInputDown.add(pauseGame);
 
+    parachuteButton = tapControls.create((worldWidth - 5) * tileSize,
+        (screenHeight - 8) * tileSize, arrow);
+    parachuteButton.angle = 90;
+    parachuteButton.inputEnabled = true;
+    parachuteButton.events.onInputDown.add(useParachute);
+
     // Music.
     music = new Phaser.Sound(game, 'music', 1, true);
     game.time.events.add(Phaser.Timer.SECOND, function() {
@@ -737,6 +769,7 @@ function create() {
     game.world.bringToTop(platforms);
     game.world.bringToTop(fuelbar);
     game.world.bringToTop(lives);
+    game.world.bringToTop(parachutes);
     game.world.bringToTop(tapControls);
 
     timer = game.time.create(false);
@@ -768,6 +801,11 @@ function create() {
     game.physics.arcade.enableBody(player);
     player.body.bounce.y = 0;
 
+    parachute = game.add.sprite(0, -100, 'parachute');
+    parachute.anchor.setTo(.5, .5);
+    player.addChild(parachute);
+    parachute.visible = false;
+
     invincible = true;
     var warpInPlayer = game.add.tween(player).to({ y: 150, angle: 720 }, 1000,
         Phaser.Easing.Linear.None, false, 0, 0, false);
@@ -783,6 +821,7 @@ function create() {
 
     warpInPlayer.chain(blinkPlayer);
     warpInPlayer.start();
+    startSound.play('', 0, 1, false, false);
 }
 
 function tick() {
@@ -875,6 +914,36 @@ function pauseGame() {
     pauseText.kill();
     game.paused = false;
   }
+}
+
+function useParachute() {
+  console.log('useParachute called - in use ' + parachuteInUse + ' num ' + numParachutes);
+  if (parachuteInUse) {
+    return;
+  }
+  if (numParachutes <= 0) {
+    return;
+  }
+
+  parachuteSound.play('', 0, 1, false, false);
+  parachute.visible = true;
+  parachuteInUse = true;
+  numParachutes--;
+  drawParachutes();
+  console.log('numParachutes is now ' + numParachutes);
+
+  player.body.angularVelocity = 0;
+  player.angle = 0;
+  fallRate = parachuteFallRate;
+  game.time.events.add(3 * Phaser.Timer.SECOND, function() {
+    console.log('Parachute done');
+    if (parachuteInUse) {
+      parachuteDoneSound.play('', 0, 1, false, false);
+      parachute.visible = false;
+      parachuteInUse = false;
+      fallRate = initialFallRate;
+    }
+  });
 }
 
 function gameOver() {
@@ -1021,16 +1090,28 @@ function drawFuelbar() {
 }
 
 function drawLives() {
-  // Replace group with the new sprite.
   lives.forEach(function(c) {
     c.destroy();
   });
 
   for (var i = 0; i < numLives; i++) {
-    var l = lives.create(livesX + (i * 40), livesY, 'player');
+    var l = lives.create(livesX + (i * 60), livesY, 'player');
     l.scale.x = 0.5;
     l.scale.y = 0.5;
     l.frame = 4;
+  }
+}
+
+function drawParachutes() {
+  parachutes.forEach(function(c) {
+    c.destroy();
+  });
+
+  for (var i = 0; i < numParachutes; i++) {
+    var p = parachutes.create(parachutesX + (i * 60), parachutesY, 'parachute');
+    p.tint = 0x808080;
+    p.scale.x = 0.2;
+    p.scale.y = 0.2;
   }
 }
 
@@ -1045,8 +1126,13 @@ function useJetpack(goleft) {
 
   var mult = goleft ? -1 : 1;
   player.body.velocity.x = 150 * mult;
-  player.body.angularVelocity = (spinRate / 2) * mult;
-  player.body.angularDrag = spinRate * 0.2;
+  if (!parachuteInUse) {
+    player.body.angularVelocity = (spinRate / 2) * mult;
+    player.body.angularDrag = spinRate * 0.2;
+  } else {
+    // TODO - Fix this so it rolls
+    player.angle = goleft ? -20 : 20;
+  }
   player.scale.x = mult;
     
   jetpack.emitX = player.x + (goleft ? 30 : -30);
@@ -1072,15 +1158,19 @@ function update() {
   game.physics.arcade.overlap(player, leftFanWalls, function() {
     player.body.velocity.x = baseFanVelocity -
       (numGearsCollected * gearBenefit);
-    player.body.angularVelocity = spinRate;
-    player.body.angularDrag = spinRate * 0.2;
+    if (!parachuteInUse) {
+      player.body.angularVelocity = spinRate;
+      player.body.angularDrag = spinRate * 0.2;
+    }
     player.scale.x = 1;
   });
   game.physics.arcade.overlap(player, rightFanWalls, function() {
     player.body.velocity.x = -1 * (baseFanVelocity -
         (numGearsCollected * gearBenefit));
-    player.body.angularVelocity = -1 * spinRate;
-    player.body.angularDrag = spinRate * 0.2;
+    if (!parachuteInUse) {
+      player.body.angularVelocity = -1 * spinRate;
+      player.body.angularDrag = spinRate * 0.2;
+    }
     player.scale.x = -1;
   });
   game.physics.arcade.overlap(player, lights, hitCheckpoint);
@@ -1098,13 +1188,17 @@ function update() {
     } else if (godMode && cursors.down.isDown) {
       // Debug only.
       fallRate += 100;
-    } else if (godMode && cursors.up.isDown) {
-      // Debug only.
-      fallRate = 0;
-      jetpackFuel = 100;
-      player.body.velocity.x = 0;
-      jetpack.on = false;
-      drawFuelbar();
+    } else if (cursors.up.isDown) {
+      if (godMode) {
+        // Debug only.
+        fallRate = 0;
+        jetpackFuel = 100;
+        player.body.velocity.x = 0;
+        jetpack.on = false;
+        drawFuelbar();
+      } else {
+        useParachute();
+      }
     } else {
       // Stand still
       leftArrow.alpha = 1.0;
