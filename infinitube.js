@@ -1,7 +1,4 @@
-// TODO
-//
 // Known bugs:
-// - Too slow on mobile
 // - Somtimes lastPopulatedLayer not respected?
 
 var PlayState = function () {};
@@ -14,7 +11,7 @@ PlayState.prototype = {
 };
 
 
-const godMode = true;
+const godMode = false;
 const maxLives = 3;
 const screenWidth = 40;
 const screenHeight = 20;
@@ -1174,6 +1171,7 @@ function makeFuelbarCache() {
 
 function drawFuelbar() {
   // Replace group with the new sprite.
+  fuelbar.visible = false;
   fuelbar.destroy();
   fuelbar = game.add.group();
   fuelbar.enableBody = false;
