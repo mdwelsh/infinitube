@@ -1,7 +1,8 @@
 // TODO
 //
-// Multiple lives
-// Parachutes
+// Known bugs:
+// - Too slow on mobile
+// - Somtimes lastPopulatedLayer not respected?
 
 var PlayState = function () {};
 
@@ -33,7 +34,7 @@ const spikeProb = 0.5;
 const fanProb = 0.02;
 const fuelProb = 0.02;
 const floatySpikeProb = 0.01;
-const wormProb = 0.1;
+const wormProb = 0.01;
 
 const minObstacleGap = 10;
 const maxGears = 12;
@@ -62,7 +63,8 @@ const initialFallRate = 300;
 const parachuteFallRate = 100;
 const fallRateIncrease = 60;
 const maxFallRate = 1000;
-const initialParachutes = 3;
+const initialParachutes = 4;
+const maxParachutes = 12;
 const longWormLength = 6;
 const longWormSegment = 100;
 const longWormWidth = 20;
@@ -108,6 +110,7 @@ function preload() {
   game.load.image('whitepuff','assets/smoke/whitePuff00.png');
   game.load.image('gascan','assets/gascan.png');
   game.load.image('parachute','assets/parachute.png');
+  game.load.image('wornParachute','assets/worn_parachute.png');
   game.load.image('background','assets/spaceship_bg_2.png');
   game.load.spritesheet('flame', 'assets/flame/sparkling-fireball-small.png',
       256, 256, -1, 0, 1);
@@ -138,6 +141,7 @@ var collectedGears;
 var fans;
 var walls;
 var fuelbar;
+var fuelbarCache;
 var lives;
 var parachutes;
 var tapControls;
@@ -312,8 +316,8 @@ function makeFan(x, y, onLeft) {
   fw.scale.x = game.world.width;
 
   // Fan emitter
-  var fe = game.add.emitter(onLeft ? 50 : -50, 0, 50);
-  fe.makeParticles(onLeft ? 'ewave-right' : 'ewave-left', 0, 20, false,
+  var fe = game.add.emitter(onLeft ? 50 : -50, 0, 10);
+  fe.makeParticles(onLeft ? 'ewave-right' : 'ewave-left', 0, 10, false,
       false);
   fe.gravity = 0;
   fe.setAlpha(1, 0, 600);
@@ -700,8 +704,8 @@ function create() {
     parachuteDoneSound = game.add.audio('parachutedone');
     parachuteDoneSound.allowMultiple = false;
 
-    jetpack = game.add.emitter((worldWidth / 2) * tileSize, 150);
-    jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 1000, false, false);
+    jetpack = game.add.emitter((worldWidth / 2) * tileSize, 10);
+    jetpack.makeParticles('flame', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     jetpack.gravity = 0;
     jetpack.setAlpha(1, 0, 1000);
     jetpack.setScale(0.4, 0, 0.4, 0, 1000);
@@ -710,6 +714,7 @@ function create() {
 
     fuelbar = game.add.group();
     fuelbar.enableBody = false;
+    makeFuelbarCache();
     lives = game.add.group();
     lives.enableBody = false;
     parachutes = game.add.group();
@@ -828,6 +833,13 @@ function create() {
         'Checkpoints: ' + checkpointsTraversed,
         { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
 
+    // Create parachute first.
+    parachute = game.add.sprite(0, -100, 'wornParachute');
+    parachute.anchor.setTo(.5, .2);
+    parachute.scale.x = 0.1;
+    parachute.scale.y = 0.1;
+    parachute.visible = false;
+
     // Create player.
     player = game.add.sprite((worldWidth / 2) * tileSize, -100, 'player');
     player.anchor.setTo(.5,.5);
@@ -837,13 +849,7 @@ function create() {
     // Make collisions only count for the guts of the player.
     player.body.setSize(player.width/2, player.height/2,
         player.width/4, player.height/4);
-
-    parachute = game.add.sprite(0, -100, 'parachute');
-    parachute.anchor.setTo(.5, .2);
-    parachute.scale.x = 0.1;
-    parachute.scale.y = 0.1;
     player.addChild(parachute);
-    parachute.visible = false;
 
     invincible = true;
     var warpInPlayer = game.add.tween(player).to({ y: 150, angle: 720 }, 1000,
@@ -958,11 +964,13 @@ function useParachute() {
   if (parachuteInUse) {
     return;
   }
-  if (numParachutes <= 0) {
+  parachuteInUse = true;
+
+  console.log('useParachute - in use ' + parachuteInUse + ' num ' + numParachutes);
+  if (numParachutes == 0) {
     return;
   }
 
-  parachuteInUse = true;
   numParachutes--;
   drawParachutes();
 
@@ -1140,21 +1148,31 @@ CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
   return this;
 }
 
-function drawFuelbar() {
+function makeFuelbar(level) {
   var fi = game.add.bitmapData(fuelbarWidth, fuelbarHeight);
   var ctx = fi.context;
   var grd = ctx.createLinearGradient(0, 0, fuelbarWidth, fuelbarHeight);
   grd.addColorStop(0, "#00FF00");
   grd.addColorStop(1, "#FF0000");
   ctx.fillStyle = grd;
-  var y = fuelbarHeight - (fuelbarHeight * (jetpackFuel / 100));
+  var y = fuelbarHeight - (fuelbarHeight * (level / 100));
   ctx.roundRect(0, y, fuelbarWidth, fuelbarHeight - y, 10).fill();
+  return fi;
+}
 
+function makeFuelbarCache() {
+  fuelbarCache = new Array(100);
+  for (i = 0; i <= 100; i++) {
+    fuelbarCache[i] = makeFuelbar(i);
+  }
+}
+
+function drawFuelbar() {
   // Replace group with the new sprite.
-  fuelbar.forEach(function(c) {
-    c.destroy();
-  });
-  fuelbar.getFirstDead(true, fuelbarX, fuelbarY, fi);
+  fuelbar.destroy();
+  fuelbar = game.add.group();
+  fuelbar.enableBody = false;
+  fuelbar.create(fuelbarX, fuelbarY, fuelbarCache[jetpackFuel]);
 }
 
 function drawLives() {
@@ -1171,13 +1189,17 @@ function drawLives() {
 }
 
 function drawParachutes() {
-  parachutes.forEach(function(c) {
-    c.destroy();
-  });
+  console.log('drawParachutes - currently ' + parachutes.children.length);
 
+  // Re-create parachutes.
+  parachutes.destroy();
+  parachutes = game.add.group();
+  parachutes.enableBody = false;
+
+  console.log('drawParachutes - drawing ' + numParachutes);
   for (var i = 0; i < numParachutes; i++) {
-    var p = parachutes.create(parachutesX + (i * 60), parachutesY, 'parachute');
-    p.tint = 0x808080;
+    var p = parachutes.create(parachutesX + ((i % 3) * 60),
+        parachutesY + (Math.floor(i / 3) * 60), 'parachute');
     p.scale.x = 0.2;
     p.scale.y = 0.2;
   }
