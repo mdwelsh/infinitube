@@ -1344,6 +1344,7 @@ function update() {
 }
 
 function render() {
-  debugString = 'fps ' + game.time.fps + ' sugg ' + game.time.suggestedFps;
-  game.debug.text(debugString, 32, 150);
+  if (debugString != '') {
+    game.debug.text(debugString, 32, 150);
+  }
 }

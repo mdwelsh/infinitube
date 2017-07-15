@@ -1,0 +1,28 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+<title>Infinitube</title>
+<meta charset="UTF-8" />
+<script type="text/javascript" src="../js/phaser.min.js"></script>
+<script type="text/javascript" src="game.js"></script>
+
+<script>
+var game = new Phaser.Game(800, 600, Phaser.CANVAS, '', { preload: preload, create: create});
+
+function preload() {
+  game.stage.backgroundColor = "#5c94fc";
+}
+
+function create() {
+  game.add.text(100, 100, 'Click here to go full screen');
+
+  game.input.onDown.add(function() {
+    game.scale.startFullScreen();
+  });
+}
+</script>
+
+</head>
+<body>
+</body>
+</html>
