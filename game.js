@@ -21,4 +21,5 @@ function goFullScreen() {
   }
   game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
   game.scale.startFullScreen();
+  fullScreen = true;
 }
