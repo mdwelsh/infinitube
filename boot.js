@@ -83,16 +83,10 @@ BootState.prototype = {
     this.makeLine('Try not to get hurt', 510, '20px', 'Bubbler One');
     this.showCredits();
 
-    if (!game.device.desktop) {
-      game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
-    }
     var startLine = this.makeLine('start game', 570, '40px', 'Bubbler One');
     startLine.fill = '#f04040';
     startLine.inputEnabled = true;
     startLine.events.onInputDown.add(function() {
-      if (!game.device.desktop) {
-        game.scale.startFullScreen(false);
-      }
       game.time.events.add(Phaser.Timer.SECOND, function() {
         game.state.start('play');
       }, this);

@@ -1,5 +1,5 @@
 var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
-    Phaser.AUTO, '');
+    Phaser.AUTO, 'game-container');
 
 game.state.add('boot', BootState);
 game.state.add('credits', CreditsState);
@@ -13,3 +13,11 @@ WebFont.load({
     game.state.start('boot');
   },
 });
+
+var fullScreen = false;
+function goFullScreen() {
+  if (fullScreen) {
+    return;
+  }
+  game.scale.startFullScreen();
+}
