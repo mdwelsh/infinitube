@@ -80,7 +80,7 @@ BootState.prototype = {
     }
     this.makeLine('Collect gears to increase power', 480, '20px',
         'Bubbler One');
-    this.makeLine('Try not to get hurt', 510, '20px', 'Bubbler One');
+    this.makeLine('Use parachutes to slow down', 510, '20px', 'Bubbler One');
     this.showCredits();
 
     var startLine = this.makeLine('start game', 570, '40px', 'Bubbler One');
