@@ -665,9 +665,6 @@ function drawIcon() {
 }
 
 function create() {
-    drawIcon(); // XXX mdw
-    return;
-
     game.time.advancedTiming = true;
 
     if (checkpointSeed != null) {
@@ -1297,8 +1294,6 @@ function useJetpack(goleft) {
 }
 
 function update() {
-  return; // XXX MDW 
-
   // Check for collisions.
   game.physics.arcade.collide(player, walls);
   game.physics.arcade.collide(items, walls);
