@@ -611,7 +611,63 @@ function restartGame(clean) {
   game.state.start('play');
 }
 
+function drawIcon() {
+  var startX = 10;
+  var endX = 20;
+  var startY = 10;
+  var endY = 20;
+
+  for (y = startY; y < endY; y++) {
+    for (x = startX; x < endX; x++) {
+      if ((x < endX - 1) && (y < endY - 1)) {
+        var wall = game.add.sprite(x * tileSize, y * tileSize,
+            'platformerRequest', 29);
+        wall.width = tileSize;
+        wall.height = tileSize;
+        var shade = game.rnd.integerInRange(10, 50);
+        wall.tint = (shade << 16) | (shade << 8) | shade;
+      }
+
+      if (y == startY || y == endY-1) {
+        var liner = game.add.sprite(x * tileSize, y * tileSize,
+            'platformerIndustrial',
+            'platformIndustrial_065.png');
+        liner.anchor.setTo(.5,.5);
+        //wall.angle = 90;
+        liner.width = tileSize * 2;
+        liner.height = tileSize;
+      }
+
+    }
+  }
+
+  for (y = startY; y < endY; y++) {
+    for (x = startX; x < endY; x++) {
+      if (x == startX || x == endX-1) {
+        var liner = game.add.sprite(x * tileSize, y * tileSize,
+            'platformerIndustrial',
+            'platformIndustrial_065.png');
+        liner.anchor.setTo(.5,.5);
+        liner.angle = 90;
+        liner.width = tileSize * 2;
+        liner.height = tileSize;
+      }
+    }
+  }
+
+  var textX = startX + ((endX - startX)/2);
+  var textY = startY + ((endY - startY)/2);
+
+  var t = game.add.text(textX * tileSize, textY * tileSize, 'I',
+        { font: 'Russo One', fontSize: '250px', fill: '#ffffff' });
+  t.anchor.setTo(0.65, 0.55);
+
+}
+
 function create() {
+    drawIcon(); // XXX mdw
+    return;
+
     game.time.advancedTiming = true;
 
     if (checkpointSeed != null) {
@@ -862,6 +918,7 @@ function create() {
       player.alpha = 1.0;
       invincible = false;
     });
+
 
     warpInPlayer.chain(blinkPlayer);
     warpInPlayer.start();
@@ -1240,7 +1297,7 @@ function useJetpack(goleft) {
 }
 
 function update() {
-
+  return; // XXX MDW 
 
   // Check for collisions.
   game.physics.arcade.collide(player, walls);
