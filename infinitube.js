@@ -29,14 +29,14 @@ const parachutesX = (worldWidth - 8) * tileSize;
 const parachutesY = 140;
 const defaultSeed = 12345;
 
-const platformProb = 0.02;
+const platformProb = 0.04;
 const spikeProb = 0.5;
-const fanProb = 0.02;
+const fanProb = 0.03;
 const fuelProb = 0.02;
 const floatySpikeProb = 0.01;
 const wormProb = 0.01;
 
-const minObstacleGap = 10;
+const minObstacleGap = 6;
 const maxGears = 12;
 const baseFanVelocity = 300;
 const gearBenefit = 20;
@@ -615,6 +615,8 @@ function restartGame(clean) {
 }
 
 function create() {
+    game.time.advancedTiming = true;
+
     if (checkpointSeed != null) {
       worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
     } else {
@@ -870,6 +872,9 @@ function create() {
 }
 
 function tick() {
+  // Tune FPS.
+  game.time.desiredFps = game.time.suggestedFps;
+
   var now = new Date();
   var elapsed = (now - lastTick) / 1000.0;
   if ((jetpackFuel < 100) && (now - lastJetpackUse) >= jetpackRechargeTime) {
@@ -1237,6 +1242,8 @@ function useJetpack(goleft) {
 }
 
 function update() {
+
+
   // Check for collisions.
   game.physics.arcade.collide(player, walls);
   game.physics.arcade.collide(items, walls);
@@ -1337,5 +1344,6 @@ function update() {
 }
 
 function render() {
+  debugString = 'fps ' + game.time.fps + ' sugg ' + game.time.suggestedFps;
   game.debug.text(debugString, 32, 150);
 }
