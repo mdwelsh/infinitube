@@ -10,7 +10,13 @@ BootState.prototype = {
         70, 70, -1, 0, 0);
   },
 
-  makeLine: function(s, y, size='72px', font='Bubbler One') {
+  makeLine: function(s, y, size, font) {
+    if (size === undefined) {
+      size = '72px';
+    }
+    if (font === undefined) {
+      font = 'Bubbler One';
+    }
     var t = game.add.text(game.world.centerX, y, s,
         { font: font, fontSize: size, fill: '#ffffff' });
     t.anchor.setTo(0.5);
