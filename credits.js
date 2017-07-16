@@ -10,7 +10,7 @@ CreditsState.prototype = {
         70, 70, -1, 0, 0);
   },
 
-  makeLine: function(s, y, size='72px', font='Bubbler One') {
+  makeLine: function(s, y, size, font) {
     if (size === undefined) {
       size = '72px';
     }
