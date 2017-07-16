@@ -1,5 +1,9 @@
-var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
-    Phaser.AUTO, 'game-container');
+//var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
+//    Phaser.AUTO, 'game-container');
+
+var game = new Phaser.Game(window.innerWidth * window.devicePixelRatio,
+    window.innerHeight * window.devicePixelRatio, Phaser.AUTO, 'game-container');
+
 
 game.state.add('boot', BootState);
 game.state.add('credits', CreditsState);

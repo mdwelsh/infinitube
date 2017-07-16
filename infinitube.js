@@ -14,10 +14,13 @@ PlayState.prototype = {
 const godMode = false;
 const maxLives = 3;
 const screenWidth = 40;
-const screenHeight = 20;
-const worldWidth = 40;
-const worldHeight = 40;
-const tileSize = 32;
+const tileSize = Math.floor(
+    (window.innerWidth * window.devicePixelRatio) / screenWidth);
+const screenHeight = Math.floor(
+    (window.innerHeight * window.devicePixelRatio) / tileSize);
+const worldWidth = screenWidth;
+const worldHeight = 2 * screenHeight;
+
 const scoreTextX = (worldWidth - 8) * tileSize;
 const scoreTextY = 20;
 const livesX = (worldWidth - 8) * tileSize;
