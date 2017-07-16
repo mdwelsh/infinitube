@@ -106,6 +106,13 @@ BootState.prototype = {
         game.state.start('credits');
       }, this);
     });
+
+    // This doesn't work on Chrome for some reason - http://crbug.com/743315
+    if (!game.device.chrome) {
+      game.input.onDown.add(goFullScreen, this);
+    }
+
+
   },
 
 

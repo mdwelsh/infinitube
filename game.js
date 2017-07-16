@@ -16,6 +16,8 @@ WebFont.load({
 
 var fullScreen = false;
 function goFullScreen() {
+  console.log('mdw - goFullScreen called, fullScreen is ' + fullScreen);
+
   if (fullScreen) {
     return;
   }
