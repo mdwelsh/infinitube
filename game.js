@@ -20,6 +20,21 @@ function goFullScreen() {
     return;
   }
   game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
-  game.scale.startFullScreen();
+  game.scale.onFullScreenInit.add(function(e, target) {
+    console.log('mdw - onFullScreenInit');
+    console.log(e);
+    console.log(target);
+  });
+  game.scale.onFullScreenError.add(function(e) {
+    console.log('mdw - onFullScreenError');
+    console.log(e);
+  });
+  game.scale.onFullScreenChange.add(function(e) {
+    console.log('mdw - onFullScreenChange');
+    console.log(e);
+  });
+  console.log('Trying to go full screen');
+  ret = game.scale.startFullScreen();
+  console.log('startFullScreen returned ' + ret);
   fullScreen = true;
 }
