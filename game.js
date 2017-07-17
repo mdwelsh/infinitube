@@ -1,9 +1,8 @@
 //var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
 //    Phaser.AUTO, 'game-container');
 
-var game = new Phaser.Game(window.innerWidth * window.devicePixelRatio,
-    window.innerHeight * window.devicePixelRatio, Phaser.AUTO, 'game-container');
-
+var game = new Phaser.Game(screenWidth * tileSize, screenHeight * tileSize,
+    Phaser.AUTO, 'game-container');
 
 game.state.add('boot', BootState);
 game.state.add('credits', CreditsState);
@@ -20,8 +19,11 @@ WebFont.load({
 
 var fullScreen = false;
 function goFullScreen() {
-  console.log('mdw - goFullScreen called, fullScreen is ' + fullScreen);
-
+  console.log('mdw - goFullScreen called, desktop is ' + game.device.desktop +
+      ', fullScreen is ' + fullScreen);
+  if (game.device.desktop) {
+    return;
+  }
   if (fullScreen) {
     return;
   }

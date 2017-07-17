@@ -38,7 +38,7 @@ BootState.prototype = {
   showCredits: function() {
     var cline = this.makeLine(
         this.credits[this.creditsIndex % this.credits.length],
-        14, 1.0, 'Bubbler One');
+        12, 1.0, 'Bubbler One');
     cline.alpha = 0;
 
     var fadeIn = game.add.tween(cline).to({ alpha: 1.0 }, 200,
@@ -77,7 +77,10 @@ BootState.prototype = {
       }
     }
 
-    player = game.add.sprite(tileSize * 3, 10 * tileSize, 'player');
+    player = game.add.sprite(tileSize * 3, 9 * tileSize, 'player');
+    // The player ix 72x97. Scale it according to the game dimensions.
+    player.width = 2 * tileSize;
+    player.height = 2 * tileSize * (97/72);
     player.frame = 4;
     player.anchor.setTo(.5,.5);
     game.physics.arcade.enableBody(player);
@@ -92,15 +95,15 @@ BootState.prototype = {
       this.makeLine('Tap arrows to move left or right', 14, 0.8,
         'Bubbler One');
     } else {
-      this.makeLine('Use arrows to move left or right', 14, 0.8,
+      this.makeLine('Use arrows to move left or right', 15, 0.8,
           'Bubbler One');
     }
     this.makeLine('Collect gears to increase power', 16, 0.8,
         'Bubbler One');
-    this.makeLine('Use parachutes to slow down', 18, 0.8, 'Bubbler One');
+    this.makeLine('Use parachutes to slow down', 17, 0.8, 'Bubbler One');
     this.showCredits();
 
-    var startLine = this.makeLine('start game', 20, 1.5, 'Bubbler One');
+    var startLine = this.makeLine('>> start game <<', 19, 1.5, 'Bubbler One');
     startLine.fill = '#f04040';
     startLine.inputEnabled = true;
     startLine.events.onInputDown.add(function() {
@@ -109,7 +112,7 @@ BootState.prototype = {
       }, this);
     });
 
-    var creditsLine = this.makeLine('credits', 22, 1.0, 'Bubbler One');
+    var creditsLine = this.makeLine('credits', 21, 1.0, 'Bubbler One');
     creditsLine.fill = '#a0a0ff';
     creditsLine.inputEnabled = true;
     creditsLine.events.onInputDown.add(function() {
@@ -119,11 +122,9 @@ BootState.prototype = {
     });
 
     // This doesn't work on Chrome for some reason - http://crbug.com/743315
-    if (!game.device.chrome) {
+    if (!game.device.desktop && !game.device.chrome) {
       game.input.onDown.add(goFullScreen, this);
     }
-
-
   },
 
 

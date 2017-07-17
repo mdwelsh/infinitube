@@ -12,13 +12,14 @@ CreditsState.prototype = {
 
   makeLine: function(s, y, size, font) {
     if (size === undefined) {
-      size = '72px';
+      size = 2;
     }
     if (font === undefined) {
       font = 'Bubbler One';
     }
-    var t = game.add.text(game.world.centerX, y, s,
-        { font: font, fontSize: size, fill: '#ffffff' });
+    var t = game.add.text(game.world.centerX, Math.floor(y * tileSize), s,
+        { font: font, fontSize: Math.floor((size * tileSize)) + 'px',
+          fill: '#ffffff' });
     t.anchor.setTo(0.5);
     return t;
   },
@@ -59,9 +60,9 @@ CreditsState.prototype = {
 
   showCredits: function() {
     var centry = this.credits[this.creditsIndex % this.credits.length];
-    var cline = this.makeLine(centry.text, 500, '30px', 'Bubbler One');
+    var cline = this.makeLine(centry.text, screenHeight - 4, 1, 'Bubbler One');
     if (centry.url != null) {
-      var underline = this.game.add.graphics(0, 15);
+      var underline = this.game.add.graphics(0, tileSize/2);
       underline.lineStyle(2, 0xE21838);
       underline.moveTo(-cline.width / 2, 0);
       underline.lineTo(cline.width / 2, 0);
@@ -73,7 +74,7 @@ CreditsState.prototype = {
     }
     game.physics.arcade.enableBody(cline);
     cline.alpha = 0;
-    cline.body.velocity.y = -40;
+    cline.body.velocity.y = -tileSize * 2;
 
     var fadeIn = game.add.tween(cline).to({ alpha: 1.0 }, 200,
         Phaser.Easing.Linear.None, false, 0, 0, false);
@@ -96,7 +97,6 @@ CreditsState.prototype = {
   },
 
   create: function() {
-
     for (x = 0; x < worldWidth; x++) {
       for (y = 0; y < screenHeight; y++) {
         wall = game.add.sprite(x * tileSize, y * tileSize,
@@ -108,11 +108,12 @@ CreditsState.prototype = {
       }
     }
 
-    this.makeLine('Infinitube', 150, '200px', 'Russo One');
+    this.makeLine('Infinitube', 4, 6.25, 'Russo One');
 
     this.showCredits();
 
-    var backLine = this.makeLine('>> back <<', 600, '40px', 'Bubbler One');
+    var backLine = this.makeLine('>> back <<', screenHeight - 2,
+       1.5, 'Bubbler One');
     backLine.fill = '#f04040';
     backLine.inputEnabled = true;
     backLine.events.onInputDown.add(function() {

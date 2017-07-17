@@ -1,5 +1,5 @@
 // Known bugs:
-// - Somtimes lastPopulatedLayer not respected?
+// - Worm size is not responsive
 
 var PlayState = function () {};
 
@@ -13,20 +13,23 @@ PlayState.prototype = {
 
 const godMode = false;
 const maxLives = 3;
+
 const screenWidth = 40;
-const tileSize = Math.floor(
-    (window.innerWidth * window.devicePixelRatio) / screenWidth);
-const screenHeight = Math.floor(
-    (window.innerHeight * window.devicePixelRatio) / tileSize);
+//const tileSize = Math.floor(
+//    (window.innerWidth * window.devicePixelRatio) / screenWidth);
+//const screenHeight = Math.floor(
+//    (window.innerHeight * window.devicePixelRatio) / tileSize);
+const tileSize = Math.floor(window.innerWidth / screenWidth);
+const screenHeight = Math.floor(window.innerHeight / tileSize);
 const worldWidth = screenWidth;
 const worldHeight = 2 * screenHeight;
 
 const scoreTextX = (worldWidth - 8) * tileSize;
-const scoreTextY = 20;
+const scoreTextY = tileSize / 2;
 const livesX = (worldWidth - 8) * tileSize;
-const livesY = 70;
+const livesY = 2 * tileSize;
 const parachutesX = (worldWidth - 8) * tileSize;
-const parachutesY = 140;
+const parachutesY = 4.5 * tileSize;
 const defaultSeed = 12345;
 
 const platformProb = 0.04;
@@ -47,17 +50,17 @@ const tickRate = 100;
 const jetpackFuelRate = 1;
 const jetpackReplenishRate = 1;
 const jetpackRechargeTime = 1000;
-const fuelbarWidth = 20;
-const fuelbarHeight = 400;
-const fuelbarX = (screenWidth * tileSize) - 50; 
-const fuelbarY = (screenHeight * tileSize) - fuelbarHeight - 30;
-const fuelbarTextX = (screenWidth * tileSize) - 90; 
-const fuelbarTextY = (screenHeight * tileSize) - 30;
-const collectedGearsHeight = 400;
-const collectedGearsX = (screenWidth * tileSize) - 120; 
-const collectedGearsY = (screenHeight * tileSize) - 30;
-const collectedGearsTextX = (screenWidth * tileSize) - 150; 
-const collectedGearsTextY = (screenHeight * tileSize) - 30;
+const fuelbarWidth = tileSize * 0.6;
+const fuelbarHeight = 12 * tileSize;
+const fuelbarX = (screenWidth * tileSize) - tileSize;
+const fuelbarY = (screenHeight * tileSize) - fuelbarHeight - tileSize;
+const fuelbarTextX = (screenWidth * tileSize) - (2.25 * tileSize);
+const fuelbarTextY = (screenHeight * tileSize) - tileSize;
+const collectedGearsHeight = 12 * tileSize;
+const collectedGearsX = (screenWidth * tileSize) - (3.5 * tileSize);
+const collectedGearsY = (screenHeight * tileSize) - tileSize;
+const collectedGearsTextX = (screenWidth * tileSize) - (5 * tileSize);
+const collectedGearsTextY = (screenHeight * tileSize) - tileSize;
 const floatySpikeWidth = 3;
 const initialFallRate = 300;
 const parachuteFallRate = 100;
@@ -198,8 +201,8 @@ function makeWalls(y) {
   }
 
   // Liner
-  wall = walls.getFirstDead(true, (10 * tileSize) - 4, y * tileSize,
-      'platformerIndustrial', 'platformIndustrial_065.png');
+  wall = walls.getFirstDead(true, (10 * tileSize) - (tileSize / 4),
+      y * tileSize, 'platformerIndustrial', 'platformIndustrial_065.png');
   wall.anchor.setTo(.5,.5);
   wall.angle = 90;
   wall.width = tileSize * 2;
@@ -209,7 +212,8 @@ function makeWalls(y) {
   wall.outOfBoundsKill = true;
 
   // Liner
-  wall = walls.getFirstDead(true, ((worldWidth - 10) * tileSize) + 5,
+  wall = walls.getFirstDead(
+      true, ((worldWidth - 10) * tileSize) + (tileSize / 4),
       y * tileSize, 'platformerIndustrial', 'platformIndustrial_065.png');
   wall.anchor.setTo(.5,.5);
   wall.angle = 90;
@@ -227,10 +231,10 @@ function makePlatform(x, y, width, onLeft, hasSpikes, hasGear) {
   var offset = 0;
   if (onLeft) {
     left = PLATFORM_CENTER;
-    offset = 10;
+    offset = tileSize/4;
   } else {
     right = PLATFORM_CENTER;
-    offset = -10;
+    offset = -tileSize/4;
   }
 
   for (var i = 0; i < width; i++) {
@@ -283,6 +287,8 @@ function makeFan(x, y, onLeft) {
   // Start with an empty sprite to anchor things.
   var p = fans.create(x * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_067.png');
+  p.width = tileSize * 2.5;
+  p.height = tileSize * 2.5;
   p.anchor.setTo(.5,.5);
   p.body.immovable = true;
   p.checkWorldBounds = true;
@@ -316,7 +322,7 @@ function makeFan(x, y, onLeft) {
   fw.scale.x = game.world.width;
 
   // Fan emitter
-  var fe = game.add.emitter(onLeft ? 50 : -50, 0, 10);
+  var fe = game.add.emitter(onLeft ? tileSize : -tileSize, 0, 10);
   fe.makeParticles(onLeft ? 'ewave-right' : 'ewave-left', 0, 10, false,
       false);
   fe.gravity = 0;
@@ -337,6 +343,8 @@ function makeCheckpoint(y) {
   // Left light.
   var ll = lights.create(10.5 * tileSize, y * tileSize,
       'platformerIndustrial', 'platformIndustrial_041.png');
+  ll.width = tileSize;
+  ll.height = tileSize * 2;
   ll.anchor.setTo(.5,.5);
   ll.angle = 90;
   ll.body.immovable = true;
@@ -357,6 +365,8 @@ function makeCheckpoint(y) {
   // Right light.
   var rl = lights.create((worldWidth - 10.5) * tileSize,
       y * tileSize, 'platformerIndustrial', 'platformIndustrial_041.png');
+  rl.width = tileSize;
+  rl.height = tileSize * 2;
   rl.anchor.setTo(.5,.5);
   rl.angle = 270;
   rl.body.immovable = true;
@@ -825,11 +835,15 @@ function create() {
 
     leftArrow = tapControls.create(5 * tileSize,
         (screenHeight - 4) * tileSize, arrow);
+    leftArrow.width = 3.8 * tileSize;
+    leftArrow.height = 3.8 * tileSize;
     leftArrow.inputEnabled = true;
 
     rightArrow = tapControls.create((worldWidth - 5) * tileSize,
         (screenHeight - 4) * tileSize, arrow);
-    rightArrow.scale.x = -1;
+    rightArrow.width = 3.8 * tileSize;
+    rightArrow.height = 3.8 * tileSize;
+    rightArrow.scale.x *= -1;
     rightArrow.inputEnabled = true;
 
     var pause = new Phaser.Graphics(game, 0, 0)
@@ -842,11 +856,15 @@ function create() {
       .generateTexture();
     pauseButton = tapControls.create(1 * tileSize,
         (screenHeight - 4) * tileSize, pause);
+    pauseButton.width = 3.8 * tileSize;
+    pauseButton.height = 3.8 * tileSize;
     pauseButton.inputEnabled = true;
     pauseButton.events.onInputDown.add(pauseGame);
 
     parachuteButton = tapControls.create((worldWidth - 5) * tileSize,
         (screenHeight - 8) * tileSize, arrow);
+    parachuteButton.width = 3.8 * tileSize;
+    parachuteButton.height = 3.8 * tileSize;
     parachuteButton.angle = 90;
     parachuteButton.inputEnabled = true;
     parachuteButton.events.onInputDown.add(useParachute);
@@ -871,22 +889,23 @@ function create() {
     lastTick = new Date();
     timer.start();
 
-    logoText = game.add.text(12, 350, 'Infinitube',
-        { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
+    logoText = game.add.text(tileSize / 2, tileSize / 2, 'Infinitube',
+        { font: 'Russo One', fontSize: tileSize * 2 + 'px', fill: '#ffffff' });
+    logoText.anchor.setTo(1, 0);
     logoText.angle = -90;
 
     var fuelText = game.add.text(fuelbarTextX, fuelbarTextY, 'Fuel',
-        { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
+        { font: 'Bubbler One', fontSize: tileSize + 'px', fill: '#ffffff' });
     fuelText.angle = -90;
 
     var collectedGearsText = game.add.text(collectedGearsTextX,
         collectedGearsTextY, 'Gears',
-        { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
+        { font: 'Bubbler One', fontSize: tileSize + 'px', fill: '#ffffff' });
     collectedGearsText.angle = -90;
 
     scoreText = game.add.text(scoreTextX, scoreTextY,
         'Checkpoints: ' + checkpointsTraversed,
-        { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
+        { font: 'Bubbler One', fontSize: tileSize + 'px', fill: '#ffffff' });
 
     // Create parachute first.
     parachute = game.add.sprite(0, -100, 'wornParachute');
@@ -897,6 +916,9 @@ function create() {
 
     // Create player.
     player = game.add.sprite((worldWidth / 2) * tileSize, -100, 'player');
+    // The player ix 72x97. Scale it according to the game dimensions.
+    player.width = 2.5 * tileSize;
+    player.height = 2.5 * tileSize * (97/72);
     player.anchor.setTo(.5,.5);
     player.frame = 4;
     game.physics.arcade.enableBody(player);
@@ -907,7 +929,8 @@ function create() {
     player.addChild(parachute);
 
     invincible = true;
-    var warpInPlayer = game.add.tween(player).to({ y: 150, angle: 720 }, 1000,
+    var warpInPlayer = game.add.tween(player).to(
+        { y: 5 * tileSize, angle: 720 }, 1000,
         Phaser.Easing.Linear.None, false, 0, 0, false);
     warpInPlayer.onComplete.add(function() {
       player._fallRate = initialFallRate;
@@ -918,7 +941,6 @@ function create() {
       player.alpha = 1.0;
       invincible = false;
     });
-
 
     warpInPlayer.chain(blinkPlayer);
     warpInPlayer.start();
@@ -975,7 +997,8 @@ function collectGear(gear) {
   col.checkWorldBounds = true;
   col.outOfBoundsKill = true;
   col.tint = 0xf08080;
-  game.add.tween(col.body).to({ x: endx, y: endy, }, 250, Phaser.Easing.Linear.None, true);
+  game.add.tween(col.body).to({ x: endx, y: endy, }, 250,
+      Phaser.Easing.Linear.None, true);
 }
 
 function collectFuel(fuel) {
@@ -1007,9 +1030,10 @@ function pauseGame() {
     pauseScreen = game.add.tileSprite(0, 0, screenWidth * tileSize,
         screenHeight * tileSize, 'platformerRequest', 29);
     pauseScreen.tint = 0x202080;
-    pauseScreen.alpha = 0.5;
+    pauseScreen.alpha = 0.2;
     pauseText = game.add.text(game.world.centerX, game.world.centerY/2,
-        'paused', { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
+        'paused', { font: 'Russo One', fontSize: 2 * tileSize + 'px',
+          fill: '#ffffff' });
     pauseText.anchor.setTo(0.5);
     game.paused = true;
   } else {
@@ -1080,7 +1104,8 @@ function gameOver() {
   gameOverScreen.alpha = 0.5;
 
   gameOverText = game.add.text(game.world.centerX, game.world.centerY/2,
-      'game over', { font: 'Russo One', fontSize: '64px', fill: '#ffffff' });
+      'game over', { font: 'Russo One', fontSize: 2 * tileSize + 'px',
+        fill: '#ffffff' });
   gameOverText.anchor.setTo(0.5);
 
   var tryAgainString;
@@ -1091,7 +1116,7 @@ function gameOver() {
   }
   tryAgainText = game.add.text(game.world.centerX, game.world.centerY/2 + 60,
       tryAgainString,
-      { font: 'Bubbler One', fontSize: '40px', fill: '#f04040' });
+      { font: 'Bubbler One', fontSize: tileSize + 'px', fill: '#f04040' });
   tryAgainText.anchor.setTo(0.5);
   tryAgainText.inputEnabled = true;
   tryAgainText.events.onInputDown.add(function() {
@@ -1126,6 +1151,8 @@ function killPlayer() {
   smoke = game.add.sprite(player.x, player.y, 'whitepuff');
   smoke.anchor.setTo(.5,.5);
   smoke.alpha = 0;
+  smoke.width = tileSize * 8;
+  smoke.height = tileSize * 8;
   var smokeIn = game.add.tween(smoke).to( { alpha: 1 }, 200,
       Phaser.Easing.Linear.None, false);
   var smokeOut = game.add.tween(smoke).to( { alpha: 0 }, 700,
@@ -1171,7 +1198,7 @@ function hitCheckpoint(p, cw) {
   }
   scoreText = game.add.text(scoreTextX, scoreTextY,
       'Checkpoints: ' + checkpointsTraversed,
-      { font: 'Bubbler One', fontSize: '24px', fill: '#ffffff' });
+      { font: 'Bubbler One', fontSize: tileSize + 'px', fill: '#ffffff' });
 
   checkpointSound.play('', 0, 1, false, false);
 
@@ -1241,9 +1268,9 @@ function drawLives() {
   });
 
   for (var i = 0; i < numLives; i++) {
-    var l = lives.create(livesX + (i * 60), livesY, 'player');
-    l.scale.x = 0.5;
-    l.scale.y = 0.5;
+    var l = lives.create(livesX + (i * tileSize * 2), livesY, 'player');
+    l.width = tileSize * 1.4;
+    l.height = tileSize * 1.4 * (97/72); // Player is 72x97.
     l.frame = 4;
   }
 }
@@ -1258,10 +1285,12 @@ function drawParachutes() {
 
   console.log('drawParachutes - drawing ' + numParachutes);
   for (var i = 0; i < numParachutes; i++) {
-    var p = parachutes.create(parachutesX + ((i % 3) * 60),
-        parachutesY + (Math.floor(i / 3) * 60), 'parachute');
-    p.scale.x = 0.2;
-    p.scale.y = 0.2;
+    var p = parachutes.create(parachutesX + ((i % 3) * (tileSize * 2)),
+        parachutesY + (Math.floor(i / 3) * (tileSize * 2)), 'parachute');
+    p.width = tileSize * 1.8;
+    p.height = tileSize * 1.8;
+    //p.scale.x = 0.2;
+    //p.scale.y = 0.2;
   }
 }
 
@@ -1287,9 +1316,8 @@ function useJetpack(goleft) {
           Phaser.Easing.Linear.None, true, 0, 0, false);
     }
   }
-  player.scale.x = mult;
     
-  jetpack.emitX = player.x + (goleft ? 30 : -30);
+  jetpack.emitX = player.x + (goleft ? tileSize : -tileSize);
   jetpack.emitY = player.y;
   jetpack.minParticleSpeed.set(-200 * mult, 30);
   jetpack.maxParticleSpeed.set(-700 * mult, -30);
@@ -1316,7 +1344,6 @@ function update() {
       player.body.angularVelocity = spinRate;
       player.body.angularDrag = spinRate * 0.2;
     }
-    player.scale.x = 1;
   });
   game.physics.arcade.overlap(player, rightFanWalls, function() {
     player.body.velocity.x = -1 * (baseFanVelocity -
@@ -1325,7 +1352,6 @@ function update() {
       player.body.angularVelocity = -1 * spinRate;
       player.body.angularDrag = spinRate * 0.2;
     }
-    player.scale.x = -1;
   });
   game.physics.arcade.overlap(player, lights, hitCheckpoint);
 
@@ -1398,6 +1424,6 @@ function update() {
 
 function render() {
   if (debugString != '') {
-    game.debug.text(debugString, 32, 150);
+    game.debug.text(debugString, tileSize, 8 * tileSize);
   }
 }
