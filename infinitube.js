@@ -33,8 +33,7 @@ const spikeProb = 0.5;
 const fanProb = 0.04;
 const fuelProb = 0.02;
 const floatySpikeProb = 0.015;
-//const wormProb = 0.015;
-const wormProb = 0.4;
+const wormProb = 0.015;
 
 const minObstacleGap = 4;
 const maxGears = 12;
