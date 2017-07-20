@@ -33,7 +33,8 @@ const spikeProb = 0.5;
 const fanProb = 0.04;
 const fuelProb = 0.02;
 const floatySpikeProb = 0.015;
-const wormProb = 0.015;
+//const wormProb = 0.015;
+const wormProb = 0.4;
 
 const minObstacleGap = 4;
 const maxGears = 12;
@@ -412,7 +413,6 @@ function makeFuel(y) {
   game.physics.arcade.enable(c);
   c.body.velocity.setTo(200, 0);
   c.body.bounce.set(0.8);
-  //game.add.tween(c).to( { alpha: 0 }, 250, Phaser.Easing.Linear.None, true, 0, -1, true);
 }
 
 function makeFloatySpike(y) {
@@ -443,7 +443,11 @@ function makeWorm(y, onleft) {
   worm.body.immovable = true;
   worm.checkWorldBounds = true;
   worm.outOfBoundsKill = true;
-  worm.body.setSize(100, 40, onleft ? worm.width - 140 : 40, 20);
+
+  worm.body.setSize(longWormWidth * 4, longWormWidth,
+      onleft ? longWormWidth * (longWormLength+0.7) : longWormWidth/2,
+      longWormWidth/2);
+
   // Make the worm wiggle.
   var wiggle = game.add.tween(worm.scale).to( { y: -1.0 }, 1,
       Phaser.Easing.Linear.None, false, 1000, -1, true);
