@@ -1,6 +1,3 @@
-// Known bugs:
-// - Worm size is not responsive
-
 var PlayState = function () {};
 
 PlayState.prototype = {
@@ -9,7 +6,6 @@ PlayState.prototype = {
   update: update,
   render: render,
 };
-
 
 const godMode = false;
 const maxLives = 3;
@@ -34,15 +30,16 @@ const defaultSeed = 12345;
 
 const platformProb = 0.04;
 const spikeProb = 0.5;
-const fanProb = 0.03;
+const fanProb = 0.04;
 const fuelProb = 0.02;
-const floatySpikeProb = 0.01;
-const wormProb = 0.01;
+const floatySpikeProb = 0.015;
+const wormProb = 0.015;
 
-const minObstacleGap = 6;
+const minObstacleGap = 4;
 const maxGears = 12;
 const baseFanVelocity = 300;
-const gearBenefit = 20;
+const gearFanBenefit = 20;
+const gearJetpackBenefit = 10;
 const fanSpin = 1000;
 const spinRate = 800;
 const checkpointGap = 200;
@@ -70,7 +67,7 @@ const initialParachutes = 4;
 const maxParachutes = 12;
 const longWormLength = 6;
 const longWormSegment = 100;
-const longWormWidth = 20;
+const longWormWidth = tileSize * 2;
 const parachuteWarningTime = 3 * Phaser.Timer.SECOND;
 
 const WALL = 29;
@@ -481,7 +478,6 @@ function makeLayer(y) {
     return;
   }
 
-
   // Next check if we have had enough free space between obstacles.
   var ok = (curLayer - lastPopulatedLayer) >= minObstacleGap;
   if (!ok) {
@@ -595,9 +591,6 @@ function restartGame(clean) {
     checkpointsTraversed = 0;
     checkpointSeed = null;
     lastTick = 0;
-
-    console.log('Clean start, numLives is ' + numLives);
-    console.log('Clean start, checkpoints is ' + checkpointsTraversed);
 
   } else {
     // Resume from death.
@@ -726,32 +719,45 @@ function create() {
       c.width = tileSize;
       c.height = tileSize/2;
       floatySpike.draw(c, i * tileSize, tileSize);
+      c.destroy();
       var s = game.add.sprite(0, 0, 'spikes');
       s.width = tileSize;
       s.height = tileSize;
       floatySpike.draw(s, i * tileSize, 0);
+      s.destroy();
     }
+
+    var slime = game.add.sprite(0, 0, 'enemies', 'snakeSlime.png');
+    slime.anchor.setTo(0.5, 0.5);
+    var slimeHeight = slime.height;
+    var slimeAspectRatio = slime.height / slime.width;
+    var slimeSegmentRatio = longWormSegment / slime.height;
+    // Scale the slime.
+    slime.width = longWormWidth;
+    slime.height = longWormWidth * slimeAspectRatio;
+    slime.angle = 90;
 
     // Long worm is long.
-    longWormLeft = game.add.bitmapData(longWormSegment * longWormLength,
-        longWormWidth * 4);
+    longWormLeft = game.add.bitmapData(
+        slime.height * slimeSegmentRatio * longWormLength, longWormWidth * 2);
     for (var i = 0; i < longWormLength; i++) {
-      var w = game.add.sprite(0, 0, 'enemies', 'snakeSlime.png');
-      w.anchor.setTo(0.5, 0.5);
-      w.angle = 90;
-      longWormLeft.draw(w, i * longWormSegment, longWormWidth * 2);
+      longWormLeft.draw(
+          slime, i * slime.height * slimeSegmentRatio, longWormWidth);
     }
 
-    longWormRight = game.add.bitmapData(longWormSegment * longWormLength,
-        longWormWidth * 4);
+    slime.angle = -90;
+
+    longWormRight = game.add.bitmapData(
+        slime.height * slimeSegmentRatio * longWormLength, longWormWidth * 2);
     for (var i = 0; i < longWormLength-1; i++) {
-      var w = game.add.sprite(0, 0, 'enemies', 'snakeSlime.png');
-      w.anchor.setTo(0.5, 0.5);
-      w.angle = -90;
       longWormRight.draw(
-          w, (longWormSegment * longWormLength) - ((i+1) * longWormSegment),
-          longWormWidth * 2);
+          slime,
+          (slime.height * slimeSegmentRatio * longWormLength) -
+          ((i+1) * slime.height * slimeSegmentRatio),
+          longWormWidth);
     }
+
+    slime.destroy();
 
     // Add sounds
     bumpSound = game.add.audio('bump');
@@ -1049,7 +1055,6 @@ function useParachute() {
   }
   parachuteInUse = true;
 
-  console.log('useParachute - in use ' + parachuteInUse + ' num ' + numParachutes);
   if (numParachutes == 0) {
     return;
   }
@@ -1276,21 +1281,16 @@ function drawLives() {
 }
 
 function drawParachutes() {
-  console.log('drawParachutes - currently ' + parachutes.children.length);
-
   // Re-create parachutes.
   parachutes.destroy();
   parachutes = game.add.group();
   parachutes.enableBody = false;
 
-  console.log('drawParachutes - drawing ' + numParachutes);
   for (var i = 0; i < numParachutes; i++) {
     var p = parachutes.create(parachutesX + ((i % 3) * (tileSize * 2)),
         parachutesY + (Math.floor(i / 3) * (tileSize * 2)), 'parachute');
     p.width = tileSize * 1.8;
     p.height = tileSize * 1.8;
-    //p.scale.x = 0.2;
-    //p.scale.y = 0.2;
   }
 }
 
@@ -1304,7 +1304,8 @@ function useJetpack(goleft) {
   drawFuelbar();
 
   var mult = goleft ? -1 : 1;
-  player.body.velocity.x = 150 * mult;
+  player.body.velocity.x = 
+    (150 + (numGearsCollected * gearJetpackBenefit)) * mult;
   if (!parachuteInUse) {
     // Spiral like crazy.
     player.body.angularVelocity = (spinRate / 2) * mult;
@@ -1312,7 +1313,7 @@ function useJetpack(goleft) {
   } else {
     // Roll to the side when parachute is on, but only if we're rightsized.
     if (!rightSizing) {
-      game.add.tween(player).to({ angle: goleft ? -30 : 30 }, 200,
+      game.add.tween(player).to({ angle: goleft ? -40 : 40 }, 200,
           Phaser.Easing.Linear.None, true, 0, 0, false);
     }
   }
@@ -1339,7 +1340,7 @@ function update() {
   game.physics.arcade.overlap(player, items, collectItem);
   game.physics.arcade.overlap(player, leftFanWalls, function() {
     player.body.velocity.x = baseFanVelocity -
-      (numGearsCollected * gearBenefit);
+      (numGearsCollected * gearFanBenefit);
     if (!parachuteInUse) {
       player.body.angularVelocity = spinRate;
       player.body.angularDrag = spinRate * 0.2;
@@ -1347,7 +1348,7 @@ function update() {
   });
   game.physics.arcade.overlap(player, rightFanWalls, function() {
     player.body.velocity.x = -1 * (baseFanVelocity -
-        (numGearsCollected * gearBenefit));
+        (numGearsCollected * gearFanBenefit));
     if (!parachuteInUse) {
       player.body.angularVelocity = -1 * spinRate;
       player.body.angularDrag = spinRate * 0.2;

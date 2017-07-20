@@ -19,7 +19,7 @@ WebFont.load({
 
 var fullScreen = false;
 function goFullScreen() {
-  console.log('mdw - goFullScreen called, desktop is ' + game.device.desktop +
+  console.log('goFullScreen called, desktop is ' + game.device.desktop +
       ', fullScreen is ' + fullScreen);
   if (game.device.desktop) {
     return;
@@ -29,16 +29,16 @@ function goFullScreen() {
   }
   game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
   game.scale.onFullScreenInit.add(function(e, target) {
-    console.log('mdw - onFullScreenInit');
+    console.log('onFullScreenInit');
     console.log(e);
     console.log(target);
   });
   game.scale.onFullScreenError.add(function(e) {
-    console.log('mdw - onFullScreenError');
+    console.log('onFullScreenError');
     console.log(e);
   });
   game.scale.onFullScreenChange.add(function(e) {
-    console.log('mdw - onFullScreenChange');
+    console.log('onFullScreenChange');
     console.log(e);
   });
   console.log('Trying to go full screen');
