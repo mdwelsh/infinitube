@@ -620,6 +620,56 @@ function restartGame(clean) {
   game.state.start('play');
 }
 
+function dumpGroup(g) {
+  var ret = new Array();
+  g.forEachAlive(function(c) {
+    ret.push({y: c.y, layer: c._layer});
+  });
+  return ret;
+}
+
+function dump() {
+  var state = {
+    device: game.device,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio,
+    tileSize: tileSize,
+    screenWidth: screenWidth,
+    screenHeight: screenHeight,
+    worldWidth: worldWidth,
+    worldHeight: worldHeight,
+    numLives: numLives,
+    invincible: invincible,
+    playerDead: playerDead,
+    curLayer: curLayer,
+    lastPopulatedLayer: lastPopulatedLayer,
+    lastCheckpointLastPopulatedLayer: lastCheckpointLastPopulatedLayer,
+    numGearsCollected: numGearsCollected,
+    lastCheckpointCreated: lastCheckpointCreated,
+    lastCheckpointTraversed: lastCheckpointTraversed,
+    checkpointsTraversed: checkpointsTraversed,
+    checkpointSeed: checkpointSeed,
+    lastTick: lastTick,
+    jetpackFuel: jetpackFuel,
+    lastJetpackUse: lastJetpackUse,
+    numParachutes: numParachutes,
+    parachuteInUse: parachuteInUse,
+    rightSizing: rightSizing,
+    lowestMarker: lowest([markers]).y,
+    platforms: dumpGroup(platforms),
+    spikes: dumpGroup(spikes),
+    floatySpikes: dumpGroup(floatySpikes),
+    worms: dumpGroup(worms),
+    items: dumpGroup(items),
+    fans: dumpGroup(fans),
+  };
+  console.log("---- START DUMP ----");
+  console.log(JSON.stringify(state));
+  console.log("---- END DUMP ----");
+  console.log("Please email the above to mdw@mdw.la along with a screenshot");
+}
+
 function drawIcon() {
   var startX = 10;
   var endX = 20;
@@ -674,12 +724,16 @@ function drawIcon() {
 }
 
 function create() {
+    ga('send', 'event', 'Game', 'create');
+
     game.time.advancedTiming = true;
 
     if (checkpointSeed != null) {
       worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
+      ga('send', 'event', 'Game', 'restart');
     } else {
       worldRnd = new Phaser.RandomDataGenerator();
+      ga('send', 'event', 'Game', 'start');
     }
 
     // We're going to be using physics, so enable the Arcade Physics system
@@ -1143,6 +1197,7 @@ function killPlayer() {
   music.stop();
   numLives--;
   drawLives();
+  ga('send', 'event', 'Player', 'die');
 
   // Stop the player
   jetpack.on = false;

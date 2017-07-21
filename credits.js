@@ -97,6 +97,8 @@ CreditsState.prototype = {
   },
 
   create: function() {
+    ga('send', 'event', 'Game', 'credits');
+
     for (x = 0; x < worldWidth; x++) {
       for (y = 0; y < screenHeight; y++) {
         wall = game.add.sprite(x * tileSize, y * tileSize,

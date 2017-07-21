@@ -55,6 +55,9 @@ BootState.prototype = {
   },
 
   create: function() {
+    // Record boot action.
+    ga('send', 'event', 'Game', 'boot');
+
     console.log('device width: ' + window.innerWidth);
     console.log('device height: ' + window.innerHeight);
     console.log('device ratio: ' + window.devicePixelRatio);
