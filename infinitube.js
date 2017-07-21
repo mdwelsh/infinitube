@@ -26,7 +26,6 @@ const livesX = (worldWidth - 8) * tileSize;
 const livesY = 2 * tileSize;
 const parachutesX = (worldWidth - 8) * tileSize;
 const parachutesY = 4.5 * tileSize;
-const defaultSeed = 12345;
 
 const platformProb = 0.04;
 const spikeProb = 0.5;
@@ -86,7 +85,7 @@ var numGearsCollected = 0;
 var lastCheckpointCreated = 0;
 var lastCheckpointTraversed = 0;
 var checkpointsTraversed = 0;
-var checkpointSeed = [ defaultSeed ];
+var checkpointSeed = null;
 var lastTick = 0;
 var jetpackFuel = 100;
 var lastJetpackUse = 0;
@@ -604,9 +603,18 @@ function restartGame(clean) {
     // just behind checkpointGap so it will force the checkpoint to be the
     // first thing created. Also set lastPopulatedLayer to the value at the
     // last checkpoint we traversed.
-    curLayer = lastCheckpointTraversed - 1;
-    lastPopulatedLayer = lastCheckpointLastPopulatedLayer - 1;
-    lastCheckpointCreated = curLayer - (checkpointGap + 2);
+    //curLayer = lastCheckpointTraversed - 1;
+    //lastPopulatedLayer = lastCheckpointLastPopulatedLayer - 1;
+    //lastCheckpointCreated = curLayer - (checkpointGap + 2);
+  
+    // mdw: Disabling fancy restart logic for now as it seems to be broken
+    // in some cases.
+    curLayer = -1;
+    lastPopulatedLayer = 0;
+    lastCheckpointLastPopulatedLayer = 0;
+    lastCheckpointCreated = 0;
+    lastCheckpointTraversed = 0;
+    lastTick = 0;
   }
 
   numGearsCollected = 0;
@@ -732,7 +740,7 @@ function create() {
       worldRnd = new Phaser.RandomDataGenerator(checkpointSeed);
       ga('send', 'event', 'Game', 'restart');
     } else {
-      worldRnd = new Phaser.RandomDataGenerator();
+      worldRnd = new Phaser.RandomDataGenerator([Math.random()]);
       ga('send', 'event', 'Game', 'start');
     }
 
